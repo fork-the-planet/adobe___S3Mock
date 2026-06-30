@@ -23,7 +23,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.util.HexFormat
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
 
@@ -38,7 +37,13 @@ class VectorStore(
   private val vectorIndexStore: VectorIndexStore,
   private val objectMapper: ObjectMapper,
 ) {
-  private val lockStore: MutableMap<String, Any> = ConcurrentHashMap()
+  /**
+   * Fixed-size set of lock objects striped by key hash — bounds memory use for keyed
+   * locking without needing reference-counted removal once a vector is deleted.
+   */
+  private val locks: Array<Any> = Array(LOCK_STRIPE_COUNT) { Any() }
+
+  private fun lockFor(key: String): Any = locks[Math.floorMod(key.hashCode(), locks.size)]
 
   data class StoredVector(
     val key: String,
@@ -54,8 +59,7 @@ class VectorStore(
     metadata: Map<String, Any?>?,
   ) {
     val lockKey = lockKey(bucketName, indexName, key)
-    lockStore.putIfAbsent(lockKey, Any())
-    synchronized(lockStore[lockKey]!!) {
+    synchronized(lockFor(lockKey)) {
       val dir = getVectorDir(bucketName, indexName, key)
       dir.mkdirs()
       dir.resolve(KEY_FILE).writeText(key, Charsets.UTF_8)
@@ -91,10 +95,11 @@ class VectorStore(
     indexName: String,
     key: String,
   ) {
+    val dir = getVectorDir(bucketName, indexName, key)
+    if (!dir.exists()) return
     val lockKey = lockKey(bucketName, indexName, key)
-    synchronized(lockStore[lockKey]!!) {
-      getVectorDir(bucketName, indexName, key).deleteRecursively()
-      lockStore.remove(lockKey)
+    synchronized(lockFor(lockKey)) {
+      dir.deleteRecursively()
     }
   }
 
@@ -198,6 +203,7 @@ class VectorStore(
     const val KEY_FILE = "key.txt"
     const val DATA_FILE = "data.f32"
     const val METADATA_FILE = "metadata.json"
+    private const val LOCK_STRIPE_COUNT = 256
 
     fun sha256Hex(input: String): String {
       val digest = MessageDigest.getInstance("SHA-256")
