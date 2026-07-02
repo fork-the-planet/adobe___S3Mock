@@ -15,11 +15,11 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
+import com.adobe.testing.s3mock.util.StripedLocks
 import com.adobe.testing.s3mock.vectors.S3VectorsException
 import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
 
@@ -31,12 +31,12 @@ class VectorIndexStore(
   private val vectorBucketStore: VectorBucketStore,
   private val objectMapper: ObjectMapper,
 ) {
-  private val lockStore: MutableMap<String, Any> = ConcurrentHashMap()
+  private val locks = StripedLocks()
 
-  private fun lockKey(
+  private fun lockFor(
     bucketName: String,
     indexName: String,
-  ) = "$bucketName/$indexName"
+  ): Any = locks.lockFor("$bucketName/$indexName")
 
   fun createIndex(
     bucketName: String,
@@ -49,9 +49,7 @@ class VectorIndexStore(
     nonFilterableMetadataKeys: List<String>,
     tags: Map<String, String>,
   ): VectorIndexMetadata {
-    val key = lockKey(bucketName, indexName)
-    lockStore.putIfAbsent(key, Any())
-    synchronized(lockStore[key]!!) {
+    synchronized(lockFor(bucketName, indexName)) {
       if (doesIndexExist(bucketName, indexName)) throw S3VectorsException.INDEX_ALREADY_EXISTS
       val indexDir = getIndexDir(bucketName, indexName)
       indexDir.mkdirs()
@@ -78,9 +76,7 @@ class VectorIndexStore(
     bucketName: String,
     indexName: String,
   ): VectorIndexMetadata {
-    val key = lockKey(bucketName, indexName)
-    lockStore.putIfAbsent(key, Any())
-    synchronized(lockStore[key]!!) {
+    synchronized(lockFor(bucketName, indexName)) {
       val metaFile = getIndexDir(bucketName, indexName).resolve(INDEX_META_FILE)
       if (!metaFile.exists()) throw S3VectorsException.INDEX_NOT_FOUND
       return objectMapper
@@ -117,9 +113,7 @@ class VectorIndexStore(
     indexName: String,
     tags: Map<String, String>,
   ) {
-    val key = lockKey(bucketName, indexName)
-    lockStore.putIfAbsent(key, Any())
-    synchronized(lockStore[key]!!) {
+    synchronized(lockFor(bucketName, indexName)) {
       val meta = getIndexMetadata(bucketName, indexName)
       writeIndexMetadata(meta.copy(tags = meta.tags + tags))
     }
@@ -130,9 +124,7 @@ class VectorIndexStore(
     indexName: String,
     tagKeys: List<String>,
   ) {
-    val key = lockKey(bucketName, indexName)
-    lockStore.putIfAbsent(key, Any())
-    synchronized(lockStore[key]!!) {
+    synchronized(lockFor(bucketName, indexName)) {
       val meta = getIndexMetadata(bucketName, indexName)
       writeIndexMetadata(meta.copy(tags = meta.tags.filterKeys { it !in tagKeys }))
     }
@@ -142,11 +134,8 @@ class VectorIndexStore(
     bucketName: String,
     indexName: String,
   ) {
-    val key = lockKey(bucketName, indexName)
-    lockStore.putIfAbsent(key, Any())
-    synchronized(lockStore[key]!!) {
+    synchronized(lockFor(bucketName, indexName)) {
       getIndexDir(bucketName, indexName).deleteRecursively()
-      lockStore.remove(key)
     }
   }
 

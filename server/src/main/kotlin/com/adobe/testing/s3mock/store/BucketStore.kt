@@ -24,6 +24,7 @@ import com.adobe.testing.s3mock.dto.ObjectLockEnabled.ENABLED
 import com.adobe.testing.s3mock.dto.ObjectOwnership
 import com.adobe.testing.s3mock.dto.VersioningConfiguration
 import com.adobe.testing.s3mock.model.BucketMetadata
+import com.adobe.testing.s3mock.util.StripedLocks
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import tools.jackson.databind.ObjectMapper
@@ -33,7 +34,6 @@ import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
@@ -49,13 +49,9 @@ open class BucketStore(
   private val region: String,
   private val objectMapper: ObjectMapper,
 ) {
-  /**
-   * This map stores one lock object per Bucket name.
-   * Any method modifying the underlying file must aquire the lock object before the modification.
-   */
-  private val lockStore: MutableMap<String, Any> = ConcurrentHashMap()
+  private val locks = StripedLocks()
 
-  private fun lockFor(name: String): Any = lockStore.computeIfAbsent(name) { Any() }
+  private fun lockFor(name: String): Any = locks.lockFor(name)
 
   fun listBuckets(): List<BucketMetadata> =
     findBucketPaths()

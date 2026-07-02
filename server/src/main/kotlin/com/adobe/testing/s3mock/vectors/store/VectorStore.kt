@@ -15,6 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
+import com.adobe.testing.s3mock.util.StripedLocks
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.io.File
@@ -37,13 +38,9 @@ class VectorStore(
   private val vectorIndexStore: VectorIndexStore,
   private val objectMapper: ObjectMapper,
 ) {
-  /**
-   * Fixed-size set of lock objects striped by key hash — bounds memory use for keyed
-   * locking without needing reference-counted removal once a vector is deleted.
-   */
-  private val locks: Array<Any> = Array(LOCK_STRIPE_COUNT) { Any() }
+  private val locks = StripedLocks()
 
-  private fun lockFor(key: String): Any = locks[Math.floorMod(key.hashCode(), locks.size)]
+  private fun lockFor(key: String): Any = locks.lockFor(key)
 
   data class StoredVector(
     val key: String,
@@ -203,7 +200,6 @@ class VectorStore(
     const val KEY_FILE = "key.txt"
     const val DATA_FILE = "data.f32"
     const val METADATA_FILE = "metadata.json"
-    private const val LOCK_STRIPE_COUNT = 256
 
     fun sha256Hex(input: String): String {
       val digest = MessageDigest.getInstance("SHA-256")

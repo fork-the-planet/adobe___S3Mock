@@ -722,6 +722,29 @@ internal class BucketServiceTest : ServiceTestBase() {
     assertThat(out.encodingType).isEqualTo(encodingType)
   }
 
+  @Test
+  fun testListVersions_withSpecialCharactersInDelimiter_urlEncoding() {
+    val bucketName = "bucket-special-delimiter"
+    val delimiter = "a&b"
+    val encodingType = "url"
+    val maxKeys = 100
+
+    givenBucketWithContents(bucketName, null, listOf(givenS3Object("key")))
+
+    val out =
+      iut.listVersions(
+        bucketName,
+        null,
+        delimiter,
+        encodingType,
+        maxKeys,
+        null,
+        null,
+      )
+
+    assertThat(out.delimiter).doesNotContain("&")
+  }
+
   companion object {
     private const val TEST_BUCKET_NAME = "test-bucket"
 

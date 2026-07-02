@@ -15,11 +15,11 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
+import com.adobe.testing.s3mock.util.StripedLocks
 import com.adobe.testing.s3mock.vectors.S3VectorsException
 import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
 
@@ -31,7 +31,7 @@ class VectorBucketStore(
   private val vectorsRoot: File,
   private val objectMapper: ObjectMapper,
 ) {
-  private val lockStore: MutableMap<String, Any> = ConcurrentHashMap()
+  private val locks = StripedLocks()
 
   fun createVectorBucket(
     name: String,
@@ -39,8 +39,7 @@ class VectorBucketStore(
     kmsKeyArn: String?,
     tags: Map<String, String>,
   ): VectorBucketMetadata {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       if (doesBucketExist(name)) throw S3VectorsException.VECTOR_BUCKET_ALREADY_EXISTS
       val bucketDir = getBucketDir(name)
       bucketDir.mkdirs()
@@ -59,8 +58,7 @@ class VectorBucketStore(
   }
 
   fun getBucketMetadata(name: String): VectorBucketMetadata {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       val metaFile = getBucketDir(name).resolve(BUCKET_META_FILE)
       if (!metaFile.exists()) throw S3VectorsException.VECTOR_BUCKET_NOT_FOUND
       return objectMapper.readValue(metaFile, VectorBucketMetadata::class.java).copy(path = metaFile.parentFile.toPath())
@@ -91,8 +89,7 @@ class VectorBucketStore(
     name: String,
     tags: Map<String, String>,
   ) {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       val meta = getBucketMetadata(name)
       writeBucketMetadata(meta.copy(tags = meta.tags + tags))
     }
@@ -102,8 +99,7 @@ class VectorBucketStore(
     name: String,
     tagKeys: List<String>,
   ) {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       val meta = getBucketMetadata(name)
       writeBucketMetadata(meta.copy(tags = meta.tags.filterKeys { it !in tagKeys }))
     }
@@ -113,33 +109,28 @@ class VectorBucketStore(
     name: String,
     policy: String,
   ) {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       val policyFile = getBucketDir(name).resolve(BUCKET_POLICY_FILE)
       policyFile.writeText(policy)
     }
   }
 
   fun getPolicy(name: String): String? {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       val policyFile = getBucketDir(name).resolve(BUCKET_POLICY_FILE)
       return if (policyFile.exists()) policyFile.readText() else null
     }
   }
 
   fun deletePolicy(name: String) {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       getBucketDir(name).resolve(BUCKET_POLICY_FILE).delete()
     }
   }
 
   fun deleteBucket(name: String) {
-    lockStore.putIfAbsent(name, Any())
-    synchronized(lockStore[name]!!) {
+    synchronized(locks.lockFor(name)) {
       getBucketDir(name).deleteRecursively()
-      lockStore.remove(name)
     }
   }
 
