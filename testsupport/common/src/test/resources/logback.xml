@@ -17,9 +17,9 @@
 
 -->
 <configuration>
+  <include resource="org/springframework/boot/logging/logback/base.xml"/>
   <!-- Tomcat's Acceptor.run() unconditionally logs at ERROR on any exception from accept(),
        including AsynchronousCloseException thrown when the connector is closed during a
        normal (non-graceful) shutdown of the embedded server started/stopped per test class. -->
   <logger name="org.apache.tomcat.util.net.Acceptor" level="OFF"/>
-  <root level="warn"/>
 </configuration>
