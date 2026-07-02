@@ -255,7 +255,7 @@ open class BucketService(
     return ListVersionsResult(
       returnCommonPrefixes,
       returnDeleteMarkers,
-      delimiter,
+      encodeUrlIfRequested(delimiter, encodingType),
       encodingType,
       result.isTruncated,
       encodeUrlIfRequested(keyMarker, encodingType),
