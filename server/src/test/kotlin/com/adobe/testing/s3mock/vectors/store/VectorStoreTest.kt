@@ -15,10 +15,10 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
-import com.adobe.testing.s3mock.store.KmsKeyStore
-import com.adobe.testing.s3mock.store.MultipartStore
-import com.adobe.testing.s3mock.store.ObjectStore
-import com.adobe.testing.s3mock.store.StoreConfiguration
+import com.adobe.testing.s3mock.s3.store.KmsKeyStore
+import com.adobe.testing.s3mock.s3.store.MultipartStore
+import com.adobe.testing.s3mock.s3.store.ObjectStore
+import com.adobe.testing.s3mock.s3.store.StoreConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach

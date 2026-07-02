@@ -1,0 +1,44 @@
+/*
+ *  Copyright 2017-2026 Adobe.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+package com.adobe.testing.s3mock.s3.dto
+
+import com.adobe.testing.s3mock.common.S3Verified
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonRootName
+
+/**
+ * Represents a result of listing all Buckets.
+ * [API Reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html)
+ */
+@S3Verified(year = 2025)
+@JsonRootName("ListAllMyBucketsResult", namespace = S3_NS)
+data class ListAllMyBucketsResult(
+  @param:JsonProperty("Buckets", namespace = S3_NS)
+  val buckets: Buckets?,
+  @param:JsonProperty("ContinuationToken", namespace = S3_NS)
+  val continuationToken: String?,
+  @param:JsonProperty("Owner", namespace = S3_NS)
+  val owner: Owner?,
+  @param:JsonProperty("Prefix", namespace = S3_NS)
+  val prefix: String?,
+) {
+  constructor(
+    owner: Owner?,
+    buckets: Buckets?,
+    prefix: String?,
+    continuationToken: String?,
+  ) : this(buckets, continuationToken, owner, prefix)
+}

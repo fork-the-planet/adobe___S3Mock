@@ -15,9 +15,9 @@
  */
 package com.adobe.testing.s3mock.its
 
-import com.adobe.testing.s3mock.dto.InitiateMultipartUploadResult
-import com.adobe.testing.s3mock.util.AwsHttpHeaders.X_AMZ_STORAGE_CLASS
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_STORAGE_CLASS
+import com.adobe.testing.s3mock.s3.dto.InitiateMultipartUploadResult
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo

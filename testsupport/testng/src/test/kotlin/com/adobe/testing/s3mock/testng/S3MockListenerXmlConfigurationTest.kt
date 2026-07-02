@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.testng
 
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.testng.annotations.Test
 import software.amazon.awssdk.core.sync.RequestBody

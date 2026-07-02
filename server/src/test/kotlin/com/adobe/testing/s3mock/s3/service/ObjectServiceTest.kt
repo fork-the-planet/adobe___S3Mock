@@ -1,0 +1,630 @@
+/*
+ *  Copyright 2017-2026 Adobe.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+package com.adobe.testing.s3mock.s3.service
+
+import com.adobe.testing.s3mock.common.AwsHttpHeaders
+import com.adobe.testing.s3mock.s3.ChecksumTestUtil
+import com.adobe.testing.s3mock.s3.S3Exception
+import com.adobe.testing.s3mock.s3.S3Exception.Companion.INVALID_TAG
+import com.adobe.testing.s3mock.s3.dto.ChecksumAlgorithm
+import com.adobe.testing.s3mock.s3.dto.Delete
+import com.adobe.testing.s3mock.s3.dto.LegalHold
+import com.adobe.testing.s3mock.s3.dto.Mode
+import com.adobe.testing.s3mock.s3.dto.Retention
+import com.adobe.testing.s3mock.s3.dto.S3ObjectIdentifier
+import com.adobe.testing.s3mock.s3.dto.Tag
+import com.adobe.testing.s3mock.s3.store.MultipartStore
+import com.adobe.testing.s3mock.s3.util.DigestUtil
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.isNull
+import org.mockito.kotlin.whenever
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
+import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.util.MultiValueMapAdapter
+import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm
+import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.UUID
+import kotlin.io.path.inputStream
+import kotlin.io.path.outputStream
+
+@SpringBootTest(classes = [ServiceConfiguration::class], webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@MockitoBean(types = [BucketService::class, MultipartService::class, MultipartStore::class])
+internal class ObjectServiceTest : ServiceTestBase() {
+  @Autowired
+  private lateinit var iut: ObjectService
+
+  @Test
+  fun testDeleteObjects() {
+    val bucketName = "bucket"
+    val key = "key"
+    val key2 = "key2"
+    givenBucketWithContents(
+      bucketName,
+      "",
+      listOf(
+        givenS3Object(key),
+        givenS3Object(key2),
+      ),
+    )
+    val delete =
+      Delete(
+        listOf(
+          givenS3ObjectIdentifier(key),
+          givenS3ObjectIdentifier(key2),
+        ),
+        false,
+      )
+
+    whenever(objectStore.deleteObject(any(), any(), isNull()))
+      .thenReturn(true)
+    whenever(bucketStore.removeFromBucket(key, bucketName)).thenReturn(true)
+    whenever(bucketStore.removeFromBucket(key2, bucketName)).thenReturn(true)
+    val deleted = iut.deleteObjects(bucketName, delete)
+    assertThat(deleted.deletedObjects).hasSize(2)
+  }
+
+  @Test
+  fun testDeleteObjects_quiet() {
+    val bucketName = "bucket"
+    val key = "key"
+    val key2 = "key2"
+    givenBucketWithContents(
+      bucketName,
+      "",
+      listOf(
+        givenS3Object(key),
+        givenS3Object(key2),
+      ),
+    )
+    val delete =
+      Delete(
+        listOf(
+          givenS3ObjectIdentifier(key),
+          givenS3ObjectIdentifier(key2),
+        ),
+        true,
+      )
+
+    whenever(objectStore.deleteObject(any(), any(), isNull()))
+      .thenReturn(true)
+    whenever(bucketStore.removeFromBucket(key, bucketName)).thenReturn(true)
+    whenever(bucketStore.removeFromBucket(key2, bucketName)).thenReturn(true)
+    val deleted = iut.deleteObjects(bucketName, delete)
+    assertThat(deleted.deletedObjects).hasSize(0)
+  }
+
+  private fun givenS3ObjectIdentifier(key: String) = S3ObjectIdentifier(key, null, null, null, null)
+
+  @Test
+  fun testDeleteObject() {
+    val bucketName = "bucket"
+    val key = "key"
+    givenBucketWithContents(bucketName, "", listOf(givenS3Object(key)))
+    whenever(objectStore.deleteObject(any(), any(), isNull()))
+      .thenReturn(true)
+    whenever(bucketStore.removeFromBucket(key, bucketName)).thenReturn(true)
+    val outcome = iut.deleteObject(bucketName, key, null)
+    assertThat(outcome.deleted).isTrue()
+    assertThat(outcome.isDeleteMarker).isFalse()
+  }
+
+  @Test
+  fun testVerifyRetention_success() {
+    val retention = Retention(Mode.COMPLIANCE, Instant.now().plus(1, ChronoUnit.MINUTES))
+
+    iut.verifyRetention(retention)
+  }
+
+  @Test
+  fun testVerifyRetention_failure() {
+    val retention = Retention(Mode.COMPLIANCE, Instant.now().minus(1, ChronoUnit.MINUTES))
+    assertThatThrownBy { iut.verifyRetention(retention) }
+      .isEqualTo(S3Exception.INVALID_REQUEST_RETAIN_DATE)
+  }
+
+  @Test
+  @Throws(IOException::class)
+  fun testVerifyMd5_success() {
+    val path = File(TEST_FILE_PATH).toPath()
+    val md5 = DigestUtil.base64Digest(path.inputStream())
+    iut.verifyMd5(path, md5)
+  }
+
+  @Test
+  fun testVerifyMd5_failure() {
+    val path = File(TEST_FILE_PATH).toPath()
+    val md5 = "wrong-md5"
+    assertThatThrownBy { iut.verifyMd5(path, md5) }.isEqualTo(S3Exception.BAD_REQUEST_MD5)
+  }
+
+  @Test
+  @Throws(IOException::class)
+  fun testVerifyMd5Void_success() {
+    val path = File(TEST_FILE_PATH).toPath()
+    val md5 = DigestUtil.base64Digest(path.inputStream())
+    iut.verifyMd5(path.inputStream(), md5)
+  }
+
+  @Test
+  fun testVerifyMd5Void_failure() {
+    val path = File(TEST_FILE_PATH).toPath()
+    val md5 = "wrong-md5"
+    assertThatThrownBy { iut.verifyMd5(path.inputStream(), md5) }.isEqualTo(
+      S3Exception.BAD_REQUEST_MD5,
+    )
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchSuccess() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val etag = "\"etag\""
+
+    iut.verifyObjectMatching(
+      listOf(etag),
+      null,
+      null,
+      null,
+      s3ObjectMetadata,
+    )
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchWildcard() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val etag = "\"nonematch\""
+
+    iut.verifyObjectMatching(listOf(etag, ObjectService.WILDCARD_ETAG), null, null, null, s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchFailure() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val etag = "\"nonematch\""
+
+    assertThatThrownBy { iut.verifyObjectMatching(listOf(etag), null, null, null, s3ObjectMetadata) }
+      .isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_ifModifiedFailure() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val now = Instant.now().plusSeconds(10)
+
+    assertThatThrownBy { iut.verifyObjectMatching(null, null, listOf(now), null, s3ObjectMetadata) }
+      .isEqualTo(S3Exception.NOT_MODIFIED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_ifModifiedSuccess() {
+    val key = "key"
+    val now = Instant.now().minusSeconds(10)
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+
+    iut.verifyObjectMatching(null, null, listOf(now), null, s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_ifUnmodifiedFailure() {
+    val key = "key"
+    val now = Instant.now().minusSeconds(10)
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+
+    assertThatThrownBy { iut.verifyObjectMatching(null, null, null, listOf(now), s3ObjectMetadata) }
+      .isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_ifUnmodifiedSuccess() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val now = Instant.now().plusSeconds(10)
+
+    iut.verifyObjectMatching(null, null, null, listOf(now), s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_noneMatchSuccess() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val etag = "\"nonematch\""
+
+    iut.verifyObjectMatching(null, listOf(etag), null, null, s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_noneMatchWildcard() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+
+    assertThatThrownBy {
+      iut.verifyObjectMatching(
+        null,
+        listOf(ObjectService.WILDCARD_ETAG),
+        null,
+        null,
+        s3ObjectMetadata,
+      )
+    }.isEqualTo(S3Exception.NOT_MODIFIED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_noneMatchFailure() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val etag = "\"etag\""
+
+    assertThatThrownBy {
+      iut.verifyObjectMatching(
+        null,
+        listOf(etag),
+        null,
+        null,
+        s3ObjectMetadata,
+      )
+    }.isEqualTo(S3Exception.NOT_MODIFIED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchUnquotedEtag() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    // stored etag is "\"etag\""; pass the bare (unquoted) form — should still match
+    iut.verifyObjectMatching(listOf("etag"), null, null, null, s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchAsteriskWildcard() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    // plain '*' wildcard (ObjectService.WILDCARD) should match any object
+    iut.verifyObjectMatching(listOf(ObjectService.WILDCARD), null, null, null, s3ObjectMetadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_nullObject_withMatch_throwsNoSuchKey() {
+    assertThatThrownBy {
+      iut.verifyObjectMatching(listOf("\"etag\""), null, null, null, null)
+    }.isEqualTo(S3Exception.NO_SUCH_KEY)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_nullObject_noExpectation_success() {
+    // no match/noneMatch expectations on a missing object — should not throw
+    iut.verifyObjectMatching(null, null, null, null, null)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_noneMatchUnquotedEtag() {
+    val key = "key"
+    val s3ObjectMetadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    // stored etag is "\"etag\""; bare (unquoted) form in noneMatch should still trigger NOT_MODIFIED
+    assertThatThrownBy {
+      iut.verifyObjectMatching(null, listOf("etag"), null, null, s3ObjectMetadata)
+    }.isEqualTo(S3Exception.NOT_MODIFIED)
+  }
+
+  @Test
+  fun testVerifyLegalHoldExists_failure() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    assertThatThrownBy { iut.verifyLegalHoldExists(bucketName, key, null) }
+      .isEqualTo(S3Exception.NOT_FOUND_OBJECT_LOCK)
+  }
+
+  @Test
+  fun testVerifyLegalHoldExists_onlyRetentionSet_failure() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    val retention = Retention(Mode.COMPLIANCE, Instant.now().plus(1, ChronoUnit.DAYS))
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    whenever(objectStore.getS3ObjectMetadata(any(), any(), isNull()))
+      .thenReturn(s3ObjectMetadata(UUID.randomUUID(), key).copy(retention = retention))
+    assertThatThrownBy { iut.verifyLegalHoldExists(bucketName, key, null) }
+      .isEqualTo(S3Exception.NOT_FOUND_OBJECT_LOCK)
+  }
+
+  @Test
+  fun testVerifyRetentionExists_failure() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    assertThatThrownBy { iut.verifyRetentionExists(bucketName, key, null) }
+      .isEqualTo(S3Exception.NOT_FOUND_OBJECT_LOCK)
+  }
+
+  @Test
+  fun testVerifyRetentionExists_onlyLegalHoldSet_failure() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    val legalHold = LegalHold(LegalHold.Status.ON)
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    whenever(objectStore.getS3ObjectMetadata(any(), any(), isNull()))
+      .thenReturn(s3ObjectMetadata(UUID.randomUUID(), key).copy(legalHold = legalHold))
+    assertThatThrownBy { iut.verifyRetentionExists(bucketName, key, null) }
+      .isEqualTo(S3Exception.NOT_FOUND_OBJECT_LOCK)
+  }
+
+  @Test
+  fun testVerifyLegalHoldExists_success() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    val legalHold = LegalHold(LegalHold.Status.ON)
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    whenever(objectStore.getS3ObjectMetadata(any(), any(), isNull()))
+      .thenReturn(s3ObjectMetadata(UUID.randomUUID(), key).copy(legalHold = legalHold))
+    assertThat(iut.verifyLegalHoldExists(bucketName, key, null).legalHold).isEqualTo(legalHold)
+  }
+
+  @Test
+  fun testVerifyRetentionExists_success() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    val retention = Retention(Mode.COMPLIANCE, Instant.now().plus(1, ChronoUnit.DAYS))
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    whenever(objectStore.getS3ObjectMetadata(any(), any(), isNull()))
+      .thenReturn(s3ObjectMetadata(UUID.randomUUID(), key).copy(retention = retention))
+    assertThat(iut.verifyRetentionExists(bucketName, key, null).retention).isEqualTo(retention)
+  }
+
+  @Test
+  fun testVerifyObjectExists_success() {
+    val bucketName = "bucket"
+    val prefix = ""
+    val key = "key"
+    givenBucketWithContents(bucketName, prefix, listOf(givenS3Object(key)))
+    val s3ObjectMetadata = iut.verifyObjectExists(bucketName, key, null)
+    assertThat(s3ObjectMetadata.key).isEqualTo(key)
+  }
+
+  @Test
+  fun testVerifyObjectExists_failure() {
+    val bucketName = "bucket"
+    val key = "key"
+    givenBucket(bucketName)
+    assertThatThrownBy { iut.verifyObjectExists(bucketName, key, null) }
+      .isEqualTo(S3Exception.NO_SUCH_KEY)
+  }
+
+  @Test
+  @Throws(IOException::class)
+  fun `toTempFile computes checksum from aws-chunked stream`() {
+    val file = File("src/test/resources/sampleFile_large.txt")
+    val tempFile = toTempFile(file.toPath(), DefaultChecksumAlgorithm.SHA256)
+    val (tmp, checksum) =
+      iut.toTempFile(
+        tempFile.inputStream(),
+        HttpHeaders(
+          MultiValueMapAdapter(
+            mapOf(
+              AwsHttpHeaders.X_AMZ_SDK_CHECKSUM_ALGORITHM to listOf(ChecksumAlgorithm.SHA256.toString()),
+              HttpHeaders.CONTENT_ENCODING to listOf(AwsHttpHeaders.AWS_CHUNKED),
+              AwsHttpHeaders.X_AMZ_TRAILER to listOf(AwsHttpHeaders.X_AMZ_CHECKSUM_SHA256),
+            ),
+          ),
+        ),
+      )
+    assertThat(tmp.fileName.toString()).contains("toTempFile")
+    assertThat(checksum).contains("Y8S4/uAGut7vjdFZQjLKZ7P28V9EPWb4BIoeniuM0mY=")
+  }
+
+  @Test
+  fun `store tags succeeds`() {
+    val tags = listOf(Tag("key1", "value1"), Tag("key2", "value2"))
+    iut.verifyObjectTags(tags)
+  }
+
+  @Test
+  fun `store tags succeeds with min key and value length`() {
+    val tags = listOf(Tag("1", ""), Tag("2", ""))
+    iut.verifyObjectTags(tags)
+  }
+
+  @Test
+  fun `store tags succeeds with all allowed characters`() {
+    val tags = listOf(Tag("key1+-=._:/@ ", "value1"), Tag("key2", "value2"))
+    iut.verifyObjectTags(tags)
+  }
+
+  @Test
+  fun `store tags fails with too many tags`() {
+    val tags = (0..60).map { Tag("key$it", "value$it") }
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with duplicate keys`() {
+    val tags = listOf(Tag("key1", "value1"), Tag("key1", "value2"))
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with illegal characters`() {
+    val tags = listOf(Tag("key1%()", "value1"))
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with key gt 127 characters`() {
+    val tags =
+      listOf(
+        Tag(
+          "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque pena",
+          "value1",
+        ),
+      )
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with value gt 255 characters`() {
+    val tags =
+      listOf(
+        Tag(
+          "key1",
+          "Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, s",
+        ),
+      )
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with invalid key prefix`() {
+    val tags = listOf(Tag("aws:key1", "value1"))
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Test
+  fun `store tags fails with invalid key length`() {
+    val tags = listOf(Tag("", "value1"))
+    assertThatThrownBy {
+      iut.verifyObjectTags(tags)
+    }.isInstanceOf(S3Exception::class.java)
+      .hasMessage(INVALID_TAG.message)
+  }
+
+  @Throws(IOException::class)
+  private fun toTempFile(
+    path: Path,
+    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+  ): Path {
+    val (inputStream, _) = ChecksumTestUtil.prepareInputStream(path.toFile(), false, algorithm)
+    val tempFile = Files.createTempFile("temp", "")
+    inputStream.use { chunkedEncodingInputStream ->
+      tempFile.outputStream().use {
+        chunkedEncodingInputStream.transferTo(it)
+      }
+    }
+    return tempFile
+  }
+
+  @Test
+  fun testVerifyObjectMatchingForCopy_notModifiedMapsToPreconditionFailed() {
+    val key = "key"
+    val metadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val ifModifiedSince = listOf(Instant.ofEpochMilli(metadata.lastModified).plusSeconds(10))
+
+    assertThatThrownBy {
+      iut.verifyObjectMatchingForCopy(null, null, ifModifiedSince, null, metadata)
+    }.isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyObjectMatchingForCopy_preconditionFailedPassThrough() {
+    val key = "key"
+    val metadata = s3ObjectMetadata(UUID.randomUUID(), key)
+    val match = listOf("\"nonematch\"")
+
+    assertThatThrownBy {
+      iut.verifyObjectMatchingForCopy(match, null, null, null, metadata)
+    }.isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_byName_notModifiedMapsToPreconditionFailed() {
+    val bucketName = "bucket"
+    val key = "key"
+    givenBucketWithContents(bucketName, "", listOf(givenS3Object(key)))
+
+    assertThatThrownBy {
+      iut.verifyObjectMatching(bucketName, key, null, listOf("\"etag\""))
+    }.isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_nullMetadataWithMatch_throwsNoSuchKey() {
+    assertThatThrownBy {
+      iut.verifyObjectMatching(listOf("\"anything\""), null, null, null, null)
+    }.isEqualTo(S3Exception.NO_SUCH_KEY)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchLastModified_success() {
+    val metadata = s3ObjectMetadata(UUID.randomUUID(), "key")
+    val lastModified = Instant.ofEpochMilli(metadata.lastModified).truncatedTo(ChronoUnit.SECONDS)
+
+    iut.verifyObjectMatching(listOf("\"etag\""), listOf(lastModified), null, metadata)
+  }
+
+  @Test
+  fun testVerifyObjectMatching_matchLastModified_failure() {
+    val metadata = s3ObjectMetadata(UUID.randomUUID(), "key")
+    val lastModifiedWrong = Instant.ofEpochMilli(metadata.lastModified).minusSeconds(10).truncatedTo(ChronoUnit.SECONDS)
+
+    assertThatThrownBy {
+      iut.verifyObjectMatching(listOf("\"etag\""), listOf(lastModifiedWrong), null, metadata)
+    }.isEqualTo(S3Exception.PRECONDITION_FAILED)
+  }
+
+  @Test
+  fun testVerifyMd5_pathIOException_badRequestContent() {
+    val bogus = Path.of("this/does/not/exist-" + UUID.randomUUID())
+    assertThatThrownBy { iut.verifyMd5(bogus, "abc") }.isEqualTo(S3Exception.BAD_REQUEST_CONTENT)
+  }
+
+  @Test
+  fun testDeleteObject_missingKey_returnsFalse() {
+    val bucketName = "bucket"
+    val key = "missing"
+    givenBucket(bucketName)
+
+    val outcome = iut.deleteObject(bucketName, key, null)
+    assertThat(outcome.deleted).isFalse()
+    assertThat(outcome.isDeleteMarker).isFalse()
+  }
+
+  companion object {
+    private const val TEST_FILE_PATH = "src/test/resources/sampleFile.txt"
+  }
+}

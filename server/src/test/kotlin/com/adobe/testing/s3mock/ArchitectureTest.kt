@@ -86,7 +86,7 @@ class ArchitectureTest {
    * that all layers may read, but it must not depend on the persistence layer (store),
    * the HTTP layer (controller), or the business logic layer (service).
    * model→dto is the intentional one-way edge: model classes store dto-typed fields and
-   * [com.adobe.testing.s3mock.model.Mappers] defines extension functions that map model to dto.
+   * [com.adobe.testing.s3mock.s3.model.Mappers] defines extension functions that map model to dto.
    */
   @ArchTest
   val modelIsALeafPackage: ArchRule =
@@ -119,18 +119,85 @@ class ArchitectureTest {
       .because("util is a leaf package and must not depend on the store layer")
 
   // -----------------------------------------------------------------------
+  // Bounded-context rules (s3 / vectors / common)
+  // -----------------------------------------------------------------------
+
+  /**
+   * `common` is the thin shared root beneath both bounded contexts. It must not depend on
+   * either context, or on any layer package - otherwise it would no longer be a leaf that
+   * both `s3` and `vectors` can safely depend on.
+   */
+  @ArchTest
+  val commonIsALeafPackage: ArchRule =
+    noClasses()
+      .that()
+      .resideInAPackage("..common..")
+      .should()
+      .accessClassesThat()
+      .resideInAnyPackage(
+        "..s3..",
+        "..vectors..",
+      ).because("common is the shared leaf package beneath both bounded contexts")
+
+  /**
+   * `s3` and `vectors` are independent bounded contexts (two distinct AWS services, wire
+   * formats, and exception models). `vectors` may depend on `common`, but the two contexts
+   * must not depend on each other.
+   */
+  @ArchTest
+  val s3MayNotDependOnVectors: ArchRule =
+    noClasses()
+      .that()
+      .resideInAPackage("com.adobe.testing.s3mock.s3..")
+      .should()
+      .accessClassesThat()
+      .resideInAPackage("com.adobe.testing.s3mock.vectors..")
+      .because("s3 and vectors are independent bounded contexts; s3 must not depend on vectors")
+
+  @ArchTest
+  val vectorsMayNotDependOnS3: ArchRule =
+    noClasses()
+      .that()
+      .resideInAPackage("com.adobe.testing.s3mock.vectors..")
+      .should()
+      .accessClassesThat()
+      .resideInAPackage("com.adobe.testing.s3mock.s3..")
+      .because("s3 and vectors are independent bounded contexts; vectors must not depend on s3")
+
+  // -----------------------------------------------------------------------
   // Cycle-free package slices
   // -----------------------------------------------------------------------
 
   /**
    * No package slice may have a cyclic dependency on another package slice.
-   * Each top-level package under `com.adobe.testing.s3mock` is a separate slice
-   * (controller, service, store, model, dto, util, vectors, etc.).
+   * common, s3, and vectors are each a separate top-level slice.
    */
   @ArchTest
   val packagesMustBeFreeOfCycles: ArchRule =
     slices()
       .matching("com.adobe.testing.s3mock.(*)..")
+      .should()
+      .beFreeOfCycles()
+
+  /**
+   * Within the `s3` bounded context, each layer package (controller, service, store, model,
+   * dto, util) is its own slice and must be free of cycles.
+   */
+  @ArchTest
+  val s3PackagesMustBeFreeOfCycles: ArchRule =
+    slices()
+      .matching("com.adobe.testing.s3mock.s3.(*)..")
+      .should()
+      .beFreeOfCycles()
+
+  /**
+   * Within the `vectors` bounded context, each layer package (controller, service, store, dto)
+   * is its own slice and must be free of cycles.
+   */
+  @ArchTest
+  val vectorsPackagesMustBeFreeOfCycles: ArchRule =
+    slices()
+      .matching("com.adobe.testing.s3mock.vectors.(*)..")
       .should()
       .beFreeOfCycles()
 

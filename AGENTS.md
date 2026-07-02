@@ -26,9 +26,11 @@ Lightweight S3 API mock server for local integration testing.
 
 ## Architecture
 
-**Layered**: Controller (REST) → Service (logic) → Store (filesystem)
+Two independent bounded contexts under `com.adobe.testing.s3mock`, plus a thin shared `common/` package:
+- **`s3/`** — the core S3 API. **Layered**: Controller (REST) → Service (logic) → Store (filesystem). Key packages: `s3/controller/`, `s3/service/`, `s3/store/`, `s3/model/`, `s3/dto/`, `s3/util/`.
+- **`vectors/`** — the S3 Vectors API (separate ports, JSON wire format). Mirrors the same layering: `vectors/controller/`, `vectors/service/`, `vectors/store/`, `vectors/dto/`.
 
-**Key packages**: `controller/`, `service/`, `store/`, `dto/`
+`s3` and `vectors` must not depend on each other (enforced by `ArchitectureTest`). `common/` holds the few things both contexts share (e.g. `StripedLocks`, `AwsHttpHeaders`) and must not depend on either context.
 
 ## DO / DON'T
 

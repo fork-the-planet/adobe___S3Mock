@@ -15,8 +15,8 @@
  */
 package com.adobe.testing.s3mock.its
 
-import com.adobe.testing.s3mock.util.ChecksumUtil
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.util.ChecksumUtil
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Disabled

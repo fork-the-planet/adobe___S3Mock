@@ -16,8 +16,8 @@
 
 package com.adobe.testing.s3mock.its
 
-import com.adobe.testing.s3mock.S3Exception.Companion.PRECONDITION_FAILED
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.S3Exception.Companion.PRECONDITION_FAILED
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.awaitility.Awaitility.await

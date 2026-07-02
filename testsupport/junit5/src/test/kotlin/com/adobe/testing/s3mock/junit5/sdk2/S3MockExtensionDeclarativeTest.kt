@@ -16,7 +16,7 @@
 package com.adobe.testing.s3mock.junit5.sdk2
 
 import com.adobe.testing.s3mock.junit5.S3MockExtension
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

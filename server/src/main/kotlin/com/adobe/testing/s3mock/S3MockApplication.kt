@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock
 
-import com.adobe.testing.s3mock.store.KmsKeyStore
+import com.adobe.testing.s3mock.s3.store.KmsKeyStore
 import org.apache.catalina.connector.Connector
 import org.springframework.boot.Banner
 import org.springframework.boot.SpringApplication

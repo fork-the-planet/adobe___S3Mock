@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
-import com.adobe.testing.s3mock.util.StripedLocks
+import com.adobe.testing.s3mock.common.StripedLocks
 import com.adobe.testing.s3mock.vectors.S3VectorsException
 import tools.jackson.databind.ObjectMapper
 import java.io.File

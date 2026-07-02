@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.controller
 
-import com.adobe.testing.s3mock.util.AwsHttpHeaders.X_AMZN_ERROR_TYPE
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZN_ERROR_TYPE
 import com.adobe.testing.s3mock.vectors.S3VectorsException
 import com.adobe.testing.s3mock.vectors.dto.VectorsErrorResponse
 import com.adobe.testing.s3mock.vectors.service.VectorBucketService

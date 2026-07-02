@@ -11,33 +11,38 @@ server/src/main/kotlin/com/adobe/testing/s3mock/
 ├── S3MockApplication.kt       # Spring Boot entry
 ├── S3MockConfiguration.kt     # Top-level config
 ├── S3MockProperties.kt        # Properties binding
-├── controller/
-│   ├── *Controller.kt         # REST endpoints
-│   ├── ControllerConfiguration.kt  # Controller beans + exception handlers
-│   └── ControllerProperties.kt
-├── dto/                       # XML/JSON models (*Result, request/response)
-├── service/
-│   ├── *Service.kt            # Business logic
-│   └── ServiceConfiguration.kt  # Service beans (used in @SpringBootTest)
-├── store/
-│   ├── *Store.kt              # Persistence
-│   ├── StoreConfiguration.kt  # Store beans (used in @SpringBootTest)
-│   └── StoreProperties.kt
-└── util/
-    ├── DigestUtil.kt          # ETag/checksum computation (replaces Apache Commons)
-    ├── EtagUtil.kt            # ETag normalization
-    ├── HeaderUtil.kt          # HTTP header helpers
-    └── AwsHttpHeaders.kt      # AWS-specific header constants
+├── common/                    # Shared leaf package (s3 and vectors may both depend on it)
+│   ├── StripedLocks.kt
+│   └── AwsHttpHeaders.kt      # AWS-specific header constants
+├── s3/                        # Core S3 API bounded context
+│   ├── S3Exception.kt
+│   ├── controller/
+│   │   ├── *Controller.kt         # REST endpoints
+│   │   ├── ControllerConfiguration.kt  # Controller beans + exception handlers
+│   │   └── ControllerProperties.kt
+│   ├── dto/                       # XML/JSON models (*Result, request/response)
+│   ├── model/                     # Persisted metadata (BucketMetadata, S3ObjectMetadata, ...)
+│   ├── service/
+│   │   ├── *Service.kt            # Business logic
+│   │   └── ServiceConfiguration.kt  # Service beans (used in @SpringBootTest)
+│   └── store/
+│       ├── *Store.kt              # Persistence
+│       ├── StoreConfiguration.kt  # Store beans (used in @SpringBootTest)
+│       └── StoreProperties.kt
+└── vectors/                   # S3 Vectors API bounded context (separate ports, JSON wire format)
+    ├── controller/ service/ store/ dto/
 ```
+
+`s3` and `vectors` are independent bounded contexts — neither may depend on the other (enforced by `ArchitectureTest`).
 
 ## Implementation Flow
 
 **Adding S3 operation**: Follow **DTO → Store → Service → Controller → IT**:
 
-1. **DTO** (`dto/`): Data classes with Jackson annotations — see root `AGENTS.md` § XML Serialization for the correct `tools.jackson` annotations and namespace. Verify element names against [AWS S3 API docs](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html).
-2. **Store** (`store/`): Filesystem path resolution, binary storage, metadata JSON. Key classes: `BucketStore`, `ObjectStore`, `BucketMetadata`, `S3ObjectMetadata`. Acquire the appropriate lock (see Locking section below).
-3. **Service** (`service/`): Validation, store coordination. Throw **`S3Exception` constants** (e.g., `S3Exception.NO_SUCH_BUCKET`) — see **[docs/SPRING.md](../docs/SPRING.md)** for exception handling rules.
-4. **Controller** (`controller/`): HTTP mapping only — delegate all logic to services. Controllers never catch exceptions.
+1. **DTO** (`s3/dto/`): Data classes with Jackson annotations — see root `AGENTS.md` § XML Serialization for the correct `tools.jackson` annotations and namespace. Verify element names against [AWS S3 API docs](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html).
+2. **Store** (`s3/store/`): Filesystem path resolution, binary storage, metadata JSON. Key classes: `BucketStore`, `ObjectStore`, `BucketMetadata`, `S3ObjectMetadata`. Acquire the appropriate lock (see Locking section below).
+3. **Service** (`s3/service/`): Validation, store coordination. Throw **`S3Exception` constants** (e.g., `S3Exception.NO_SUCH_BUCKET`) — see **[docs/SPRING.md](../docs/SPRING.md)** for exception handling rules.
+4. **Controller** (`s3/controller/`): HTTP mapping only — delegate all logic to services. Controllers never catch exceptions.
 5. **Integration test** (`integration-tests/`): Real AWS SDK v2 against the Docker container — see **[integration-tests/AGENTS.md](../integration-tests/AGENTS.md)**. Run `make integration-tests` to verify XML serialization against the AWS S3 API.
 6. **Update docs**: `CHANGELOG.md` (user-facing entry) and root `AGENTS.md` Configuration table if new properties are added.
 
