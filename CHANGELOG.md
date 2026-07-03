@@ -176,6 +176,7 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * fix: `ListObjectVersions` now URL-encodes the `Delimiter` field in the response when `encoding-type=url` is requested, consistent with `Prefix`, `KeyMarker`, and object keys.
   * fix: `PutObjectRetention`/`GetObjectRetention` now parse `RetainUntilDate` with full nanosecond precision instead of truncating to milliseconds, fixing incorrect retention timestamp comparisons.
   * fix: hardened internal per-key locking (bucket/object/multipart/vector stores) against unbounded memory growth and a race that could cause NPEs or double-locking under concurrent access — no observable API change.
+  * fix: `ListBuckets`/`ListObjectsV2` no longer leak an entry into an in-memory pagination-state map on every truncated listing that isn't paged through to exhaustion — the "continue after" marker is now encoded directly into the continuation token instead of being tracked server-side, so long-lived servers under sustained listing traffic no longer grow memory unboundedly.
 * Version updates (deliverable dependencies)
   * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17
   * Bump aws.sdk.kotlin:s3-jvm from 1.6.96 to 1.6.103

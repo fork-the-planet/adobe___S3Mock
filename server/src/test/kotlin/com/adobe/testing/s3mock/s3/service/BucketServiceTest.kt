@@ -452,6 +452,95 @@ internal class BucketServiceTest : ServiceTestBase() {
   }
 
   @Test
+  fun testListObjectsV2_continuationTokenIsStateless() {
+    val bucketName = "bucket"
+    val prefix: String? = null
+    val delimiter: String? = null
+    val encodingType = "url"
+    val startAfter: String? = null
+    val maxKeys = 5 // smaller than available keys to force pagination
+    val fetchOwner = false
+
+    givenBucketWithContents(bucketName, prefix)
+
+    val first = iut.listObjectsV2(bucketName, prefix, delimiter, encodingType, startAfter, maxKeys, null, fetchOwner)
+
+    // a freshly-constructed service instance (no shared server-side paging state) can still
+    // resolve the token, proving the token itself carries the paging state instead of a
+    // server-side cache that would otherwise grow unboundedly for every truncated listing.
+    val freshInstance = BucketService(bucketStore, objectStore)
+    val second =
+      freshInstance.listObjectsV2(
+        bucketName,
+        prefix,
+        delimiter,
+        encodingType,
+        startAfter,
+        maxKeys,
+        first.nextContinuationToken,
+        fetchOwner,
+      )
+
+    assertThat(second.contents).isNotEmpty
+    assertThat(first.contents.map { it.key }).doesNotContainAnyElementsOf(second.contents.map { it.key })
+  }
+
+  @Test
+  fun testListObjectsV2_invalidContinuationTokenIsIgnored() {
+    val bucketName = "bucket"
+    val prefix: String? = null
+    val delimiter: String? = null
+    val encodingType = "url"
+    val startAfter: String? = null
+    val maxKeys = 100
+    val fetchOwner = false
+
+    givenBucketWithContents(bucketName, prefix)
+
+    val result =
+      iut.listObjectsV2(
+        bucketName,
+        prefix,
+        delimiter,
+        encodingType,
+        startAfter,
+        maxKeys,
+        "not-a-valid-token",
+        fetchOwner,
+      )
+
+    assertThat(result.contents).isNotEmpty
+  }
+
+  @Test
+  fun testListBuckets_continuationTokenIsStateless() {
+    val bucketNames = (1..3).map { "bucket-$it" }
+    whenever(bucketStore.listBuckets()).thenReturn(bucketNames.map { metadataFrom(it) })
+
+    val first = iut.listBuckets(null, null, 2, null)
+    assertThat(first.buckets!!.buckets).hasSize(2)
+    assertThat(first.continuationToken).isNotBlank()
+
+    // a freshly-constructed service instance (no shared server-side paging state) can still
+    // resolve the token, proving the token itself carries the paging state instead of a
+    // server-side cache that would otherwise grow unboundedly for every truncated listing.
+    val freshInstance = BucketService(bucketStore, objectStore)
+    val second = freshInstance.listBuckets(null, first.continuationToken, 2, null)
+
+    assertThat(second.buckets!!.buckets).extracting<String> { it.name }.containsExactly("bucket-3")
+  }
+
+  @Test
+  fun testListBuckets_invalidContinuationTokenIsIgnored() {
+    val bucketNames = (1..3).map { "bucket-$it" }
+    whenever(bucketStore.listBuckets()).thenReturn(bucketNames.map { metadataFrom(it) })
+
+    val result = iut.listBuckets(null, "not-a-valid-token", 10, null)
+
+    assertThat(result.buckets!!.buckets).hasSize(3)
+  }
+
+  @Test
   fun testListObjectsV2_withStartAfter() {
     val bucketName = "bucket"
     val prefix: String? = null

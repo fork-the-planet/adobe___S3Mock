@@ -45,17 +45,13 @@ import com.adobe.testing.s3mock.s3.model.toS3Object
 import com.adobe.testing.s3mock.s3.store.BucketStore
 import com.adobe.testing.s3mock.s3.store.ObjectStore
 import software.amazon.awssdk.utils.http.SdkHttpUtils.urlEncodeIgnoreSlashes
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Base64
 import kotlin.let
 
 open class BucketService(
   private val bucketStore: BucketStore,
   private val objectStore: ObjectStore,
 ) : ServiceBase() {
-  private val listObjectsPagingStateCache: MutableMap<String, String> = ConcurrentHashMap()
-  private val listBucketsPagingStateCache: MutableMap<String, String> = ConcurrentHashMap()
-
   fun isBucketEmpty(bucketName: String): Boolean {
     val bucketMetadata = bucketStore.getBucketMetadata(bucketName)
     val objects = bucketMetadata.objects
@@ -90,16 +86,12 @@ open class BucketService(
     var nextContinuationToken: String? = null
 
     continuationToken?.let {
-      val continueAfter = listBucketsPagingStateCache.remove(it)
-      buckets = filterBy(buckets, Bucket::name, continueAfter)
+      buckets = filterBy(buckets, Bucket::name, decodeContinuationToken(it))
     }
 
     if (buckets.size > maxBuckets) {
-      nextContinuationToken = UUID.randomUUID().toString()
       buckets = buckets.subList(0, maxBuckets)
-      buckets[maxBuckets - 1].name?.let {
-        listBucketsPagingStateCache[nextContinuationToken] = it
-      }
+      nextContinuationToken = buckets[maxBuckets - 1].name?.let { encodeContinuationToken(it) }
     }
 
     return ListAllMyBucketsResult(Owner.DEFAULT_OWNER, Buckets(buckets), prefix, nextContinuationToken)
@@ -306,8 +298,7 @@ open class BucketService(
     var isTruncated = false
 
     if (continuationToken != null) {
-      val continueAfter = listObjectsPagingStateCache.remove(continuationToken)
-      contents = filterBy(contents, S3Object::key, continueAfter)
+      contents = filterBy(contents, S3Object::key, decodeContinuationToken(continuationToken))
     } else {
       contents = filterBy(contents, S3Object::key, startAfter)
     }
@@ -317,9 +308,8 @@ open class BucketService(
 
     if (contents.size > maxKeys) {
       isTruncated = true
-      nextContinuationToken = UUID.randomUUID().toString()
       contents = contents.subList(0, maxKeys)
-      listObjectsPagingStateCache[nextContinuationToken] = contents[maxKeys - 1].key
+      nextContinuationToken = encodeContinuationToken(contents[maxKeys - 1].key)
     }
 
     val returnDelimiter = encodeUrlIfRequested(delimiter, encodingType)
@@ -484,6 +474,14 @@ open class BucketService(
       throw S3Exception.INVALID_REQUEST_ENCODING_TYPE
     }
   }
+
+  /**
+   * Continuation tokens encode the "continue after" marker directly instead of being looked up
+   * from a server-side map, so paging state needs no cleanup and can't leak memory.
+   */
+  private fun encodeContinuationToken(marker: String): String = Base64.getEncoder().encodeToString(marker.toByteArray())
+
+  private fun decodeContinuationToken(token: String): String? = runCatching { String(Base64.getDecoder().decode(token)) }.getOrNull()
 
   companion object {
     // Validation patterns per S3 bucket naming rules
