@@ -43,30 +43,6 @@
   </dependencies>
 
   <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>io.fabric8</groupId>
-          <artifactId>docker-maven-plugin</artifactId>
-          <configuration combine.self="override">
-            <verbose>true</verbose>
-            <images>
-              <image>
-                <alias>s3mock</alias>
-                <name>${docker.image.name}</name>
-                <build>
-                  <dockerFile>${project.basedir}/Dockerfile</dockerFile>
-                  <tags>
-                    <tag>${project.version}</tag>
-                    <tag>latest</tag>
-                  </tags>
-                </build>
-              </image>
-            </images>
-          </configuration>
-        </plugin>
-      </plugins>
-    </pluginManagement>
     <plugins>
       <plugin>
         <artifactId>maven-checkstyle-plugin</artifactId>

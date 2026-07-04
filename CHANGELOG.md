@@ -182,6 +182,7 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * fix: `ListBuckets` now rejects a non-positive `max-buckets` with `400 Bad Request` instead of an unhandled exception.
   * fix: removed a log statement that echoed the raw, attacker-controlled `Content-MD5` request header, which could be used to forge log entries.
   * fix: dropped the unused `software.amazon.awssdk:s3` client SDK dependency from the server module (only its `checksums`, `regions`, and `utils` helper classes were ever used) — shrinks the Docker image by removing ~15 transitive jars (Netty/Apache HTTP clients, protocol/model classes) that were never exercised at runtime.
+  * chore: removed dead, unused `docker-maven-plugin` configuration from the `docker` module's `pom.xml` — the actual image build goes through `docker buildx` shell scripts driven by `exec-maven-plugin`.
 * Version updates (deliverable dependencies)
   * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17
   * Bump aws.sdk.kotlin:s3-jvm from 1.6.96 to 1.6.103
