@@ -69,4 +69,4 @@ ENV root=/s3mockroot
 EXPOSE 9090 9191 9092 9193
 
 # run the app on startup
-ENTRYPOINT ["java", "--illegal-access=warn", "-Djava.security.egd=file:/dev/./urandom", "-XX:+UseZGC", "-XX:+ZGenerational", "-jar", "/opt/s3mock.jar" ]
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-XX:+UseZGC", "-jar", "/opt/s3mock.jar" ]
