@@ -33,18 +33,6 @@ updates:
         patterns:
           - "org.jetbrains.kotlin*"
           - "org.jetbrains.kotlinx*"
-  # Enable version updates for Docker
-  - package-ecosystem: docker
-    # Look for `Dockerfile` in the `/docker/` directory, that's where all versions are managed
-    directory: /docker
-    # Open up to 10 PRs per run
-    open-pull-requests-limit: 10
-    # Add assignees
-    assignees:
-      - afranken
-    # Check for updates once per day, Github defaults to random time every day.
-    schedule:
-      interval: daily
   # Enable version updates for Github Actions
   - package-ecosystem: github-actions
     # Github knows to look for workflow files in the default subfolder of `.github/workflows`

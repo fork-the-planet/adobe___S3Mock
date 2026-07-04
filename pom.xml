@@ -51,7 +51,6 @@
   </developers>
 
   <modules>
-    <module>docker</module>
     <module>integration-tests</module>
     <module>server</module>
     <module>testsupport</module>
@@ -76,7 +75,6 @@
     <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
     <checkstyle.version>13.7.0</checkstyle.version>
 
-    <docker-builder.image.name>s3mock-buildx</docker-builder.image.name>
     <docker-maven-plugin.version>0.48.1</docker-maven-plugin.version>
     <docker.image.name>adobe/s3mock</docker.image.name>
     <dokka-maven-plugin.version>2.2.0</dokka-maven-plugin.version>
@@ -168,12 +166,6 @@
         <classifier>exec</classifier>
       </dependency>
 
-      <dependency>
-        <groupId>com.adobe.testing</groupId>
-        <artifactId>s3mock-docker</artifactId>
-        <version>${project.version}</version>
-        <type>pom</type>
-      </dependency>
       <dependency>
         <groupId>com.adobe.testing</groupId>
         <artifactId>s3mock-testsupport-common</artifactId>

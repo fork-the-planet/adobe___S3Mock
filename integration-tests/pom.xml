@@ -41,19 +41,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <!-- only enforcing build order - all transitive dependencies are removed -->
-      <groupId>com.adobe.testing</groupId>
-      <artifactId>s3mock-docker</artifactId>
-      <type>pom</type>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
@@ -200,7 +187,10 @@
                     <COM_ADOBE_TESTING_S3MOCK_STORE_REGION>eu-west-1</COM_ADOBE_TESTING_S3MOCK_STORE_REGION>
                     <SPRING_PROFILES_ACTIVE>vectors</SPRING_PROFILES_ACTIVE>
                   </env>
-                  <memory>256000000</memory>
+                  <!-- Buildpack images run the Paketo JVM memory calculator, which reserves
+                       fixed regions (code cache, metaspace, thread stacks) and needs more
+                       headroom than the old bare-JVM Alpine image. -->
+                  <memory>1073741824</memory>
                 </run>
               </image>
             </images>
