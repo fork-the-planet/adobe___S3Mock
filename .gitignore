@@ -4,6 +4,7 @@ tmp/
 *.iml
 *.idea
 .project
+.factorypath
 .classpath
 .settings/
 *.springBeans
