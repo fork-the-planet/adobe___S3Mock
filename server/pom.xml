@@ -28,12 +28,6 @@
   <artifactId>s3mock</artifactId>
   <packaging>jar</packaging>
 
-  <name>S3Mock - Server</name>
-
-  <properties>
-    <start-class>com.adobe.testing.s3mock.S3MockApplication</start-class>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>org.jetbrains.kotlin</groupId>
@@ -61,28 +55,19 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
+    <!-- Pulls in the native aws-crt library, which provides the only available CRC64NVME
+         checksum implementation; the "checksums" module has no pure-Java fallback for it. -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>aws-crt-client</artifactId>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
-      <artifactId>regions</artifactId>
+      <artifactId>checksums</artifactId>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
-      <artifactId>s3</artifactId>
-      <exclusions>
-        <!-- TODO: these dependencies suddenly break the Docker container build when updating to Spring Boot 4.0.0-SNAPSHOT -->
-        <exclusion>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-codec-marshalling</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-codec-protobuf</artifactId>
-        </exclusion>
-      </exclusions>
+      <artifactId>regions</artifactId>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -166,6 +151,12 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <name>S3Mock - Server</name>
+
+  <properties>
+    <start-class>com.adobe.testing.s3mock.S3MockApplication</start-class>
+  </properties>
 
   <build>
     <plugins>
