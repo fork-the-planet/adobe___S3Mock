@@ -190,8 +190,22 @@
               <BP_JVM_JLINK_ENABLED>true</BP_JVM_JLINK_ENABLED>
               <!-- S3Mock does not use Spring Cloud Bindings; disable to remove the ~94MB layer. -->
               <BP_SPRING_CLOUD_BINDINGS_DISABLED>true</BP_SPRING_CLOUD_BINDINGS_DISABLED>
-              <!-- Preserve the JVM flags previously set in the Dockerfile ENTRYPOINT. -->
-              <BPE_APPEND_JAVA_TOOL_OPTIONS>-XX:+UseZGC -Djava.security.egd=file:/dev/./urandom</BPE_APPEND_JAVA_TOOL_OPTIONS>
+              <!--
+                Memory-footprint tuning for the launched container. BPL_JVM_THREAD_COUNT is only
+                the estimate the Paketo memory calculator uses to reserve thread-stack space
+                (threads x -Xss); lowering it from the 250 default frees memory for the heap under
+                a container memory limit (it does not cap the actual number of threads).
+                It must use the OVERRIDE type: a DEFAULT-typed launch env is not visible to the
+                memory-calculator exec.d process, so it would silently have no effect. The
+                trade-off is that a runtime `-e BPL_JVM_THREAD_COUNT=...` is ignored.
+              -->
+              <BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>50</BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>
+              <!--
+                Preserve the JVM flags previously set in the Dockerfile ENTRYPOINT, plus footprint
+                tuning: a smaller reserved code cache (vs the 240M default) and a 512k thread stack.
+                The memory calculator honors these user-provided values instead of overriding them.
+              -->
+              <BPE_APPEND_JAVA_TOOL_OPTIONS>-XX:+UseZGC -Djava.security.egd=file:/dev/./urandom -XX:ReservedCodeCacheSize=32M -Xss512k</BPE_APPEND_JAVA_TOOL_OPTIONS>
               <BPE_DELIM_JAVA_TOOL_OPTIONS xml:space="preserve"> </BPE_DELIM_JAVA_TOOL_OPTIONS>
               <BPE_DEFAULT_LANG>en_US.UTF-8</BPE_DEFAULT_LANG>
               <BPE_DEFAULT_LANGUAGE>en_US:en</BPE_DEFAULT_LANGUAGE>

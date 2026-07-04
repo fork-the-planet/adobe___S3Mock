@@ -188,9 +188,11 @@
                     <SPRING_PROFILES_ACTIVE>vectors</SPRING_PROFILES_ACTIVE>
                   </env>
                   <!-- Buildpack images run the Paketo JVM memory calculator, which reserves
-                       fixed regions (code cache, metaspace, thread stacks) and needs more
-                       headroom than the old bare-JVM Alpine image. -->
-                  <memory>1073741824</memory>
+                       fixed regions (code cache ~128M, metaspace ~85M, direct memory, thread
+                       stacks) before any heap. With the image's footprint tuning those fixed
+                       regions total ~253M, so the container needs clearly more than that to
+                       leave usable heap; 512 MiB yields ~264M heap. -->
+                  <memory>536870912</memory>
                 </run>
               </image>
             </images>
