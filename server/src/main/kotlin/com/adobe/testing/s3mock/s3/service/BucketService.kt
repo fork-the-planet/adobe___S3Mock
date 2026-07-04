@@ -469,6 +469,10 @@ open class BucketService(
     if (maxKeys < 0) throw S3Exception.INVALID_REQUEST_MAX_KEYS
   }
 
+  fun verifyMaxBuckets(maxBuckets: Int) {
+    if (maxBuckets <= 0) throw S3Exception.INVALID_REQUEST_MAX_BUCKETS
+  }
+
   fun verifyEncodingType(encodingType: String?) {
     if (!encodingType.isNullOrEmpty() && encodingType != "url") {
       throw S3Exception.INVALID_REQUEST_ENCODING_TYPE

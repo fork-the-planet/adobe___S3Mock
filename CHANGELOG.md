@@ -179,6 +179,8 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * fix: `ListBuckets`/`ListObjectsV2` no longer leak an entry into an in-memory pagination-state map on every truncated listing that isn't paged through to exhaustion — the "continue after" marker is now encoded directly into the continuation token instead of being tracked server-side, so long-lived servers under sustained listing traffic no longer grow memory unboundedly.
   * fix: `PutObject`/`PostObject`/`UploadPart` no longer leak the request's temp file on disk when a later validation (bucket existence, MD5/checksum mismatch, invalid part number, etc.) rejects the request — the temp file is now always cleaned up, not just on the success path.
   * fix: `CompleteMultipartUpload` now closes already-opened part-file streams if a later part fails to open, instead of leaking their file descriptors.
+  * fix: `ListBuckets` now rejects a non-positive `max-buckets` with `400 Bad Request` instead of an unhandled exception.
+  * fix: removed a log statement that echoed the raw, attacker-controlled `Content-MD5` request header, which could be used to forge log entries.
 * Version updates (deliverable dependencies)
   * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17
   * Bump aws.sdk.kotlin:s3-jvm from 1.6.96 to 1.6.103

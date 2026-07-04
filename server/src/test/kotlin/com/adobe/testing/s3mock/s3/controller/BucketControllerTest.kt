@@ -335,6 +335,28 @@ internal class BucketControllerTest : BaseControllerTest() {
 
   @Test
   @Throws(Exception::class)
+  fun `GET list buckets is a BadRequest if maxBuckets is invalid`() {
+    val maxBuckets = 0
+    doThrow(S3Exception.INVALID_REQUEST_MAX_BUCKETS).whenever(bucketService).verifyMaxBuckets(maxBuckets)
+
+    val uri =
+      UriComponentsBuilder
+        .fromUriString("/")
+        .queryParam(AwsHttpParameters.MAX_BUCKETS, maxBuckets.toString())
+        .build()
+        .toString()
+
+    mockMvc
+      .perform(
+        get(uri)
+          .accept(MediaType.APPLICATION_XML)
+          .contentType(MediaType.APPLICATION_XML),
+      ).andExpect(status().isBadRequest)
+      .andExpect(content().string(MAPPER.writeValueAsString(from(S3Exception.INVALID_REQUEST_MAX_BUCKETS))))
+  }
+
+  @Test
+  @Throws(Exception::class)
   fun testListObjectsV1_BadRequest() {
     givenBucket()
 

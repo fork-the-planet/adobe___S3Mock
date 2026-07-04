@@ -197,6 +197,12 @@ class S3Exception(
         INVALID_REQUEST_CODE,
         "maxKeys should be non-negative",
       )
+    val INVALID_REQUEST_MAX_BUCKETS: S3Exception =
+      S3Exception(
+        HttpStatus.BAD_REQUEST.value(),
+        INVALID_REQUEST_CODE,
+        "maxBuckets should be positive",
+      )
     val INVALID_REQUEST_ENCODING_TYPE: S3Exception =
       S3Exception(
         HttpStatus.BAD_REQUEST.value(),

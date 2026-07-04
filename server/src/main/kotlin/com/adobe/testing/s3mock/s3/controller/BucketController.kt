@@ -94,8 +94,9 @@ class BucketController(
     @RequestParam(name = CONTINUATION_TOKEN, required = false) continuationToken: String?,
     @RequestParam(name = MAX_BUCKETS, defaultValue = "1000", required = false) maxBuckets: Int,
     @RequestParam(required = false) prefix: String?,
-  ): ResponseEntity<ListAllMyBucketsResult> =
-    ResponseEntity.ok(
+  ): ResponseEntity<ListAllMyBucketsResult> {
+    bucketService.verifyMaxBuckets(maxBuckets)
+    return ResponseEntity.ok(
       bucketService.listBuckets(
         bucketRegion,
         continuationToken,
@@ -103,6 +104,7 @@ class BucketController(
         prefix,
       ),
     )
+  }
 
   // ===============================================================================================
   // /{bucketName:.+}

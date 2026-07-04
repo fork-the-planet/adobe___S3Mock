@@ -339,6 +339,28 @@ internal class BucketServiceTest : ServiceTestBase() {
   }
 
   @Test
+  fun testVerifyMaxBuckets_success() {
+    val buckets = 10
+    iut.verifyMaxBuckets(buckets)
+  }
+
+  @Test
+  fun testVerifyMaxBuckets_failure_negative() {
+    val buckets = -1
+    assertThatThrownBy {
+      iut.verifyMaxBuckets(buckets)
+    }.isEqualTo(S3Exception.INVALID_REQUEST_MAX_BUCKETS)
+  }
+
+  @Test
+  fun testVerifyMaxBuckets_failure_zero() {
+    val buckets = 0
+    assertThatThrownBy {
+      iut.verifyMaxBuckets(buckets)
+    }.isEqualTo(S3Exception.INVALID_REQUEST_MAX_BUCKETS)
+  }
+
+  @Test
   fun testVerifyEncodingType_success() {
     val encodingType = "url"
     iut.verifyEncodingType(encodingType)

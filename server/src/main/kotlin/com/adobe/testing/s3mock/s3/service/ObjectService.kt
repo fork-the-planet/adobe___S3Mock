@@ -280,7 +280,7 @@ open class ObjectService(
     contentMd5 ?: return
     val md5 = base64Digest(inputStream)
     if (md5 != contentMd5) {
-      LOG.error("Content-MD5 {} does not match object md5 {}", contentMd5, md5)
+      // don't log the raw header value here - it's attacker-controlled and would allow log forging
       throw S3Exception.BAD_REQUEST_MD5
     }
   }
