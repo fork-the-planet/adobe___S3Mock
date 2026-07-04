@@ -175,37 +175,38 @@ class ObjectController(
     @RequestPart(FILE) file: MultipartFile,
   ): ResponseEntity<Void> {
     val (tempFile, _) = objectService.toTempFile(file.inputStream)
+    try {
+      val bucket = bucketService.verifyBucketExists(bucketName)
+      objectService.verifyMd5(tempFile, contentMd5)
 
-    val bucket = bucketService.verifyBucketExists(bucketName)
-    objectService.verifyMd5(tempFile, contentMd5)
+      val s3ObjectMetadata =
+        objectService.putObject(
+          bucketName = bucketName,
+          key = key.key,
+          contentType = mediaTypeFrom(contentType).toString(),
+          storeHeaders = emptyMap(),
+          path = tempFile,
+          userMetadata = emptyMap(),
+          encryptionHeaders = emptyMap(),
+          tags = tags,
+          checksumAlgorithm = null,
+          checksum = null,
+          owner = Owner.DEFAULT_OWNER,
+          storageClass = storageClass,
+        )
 
-    val s3ObjectMetadata =
-      objectService.putObject(
-        bucketName = bucketName,
-        key = key.key,
-        contentType = mediaTypeFrom(contentType).toString(),
-        storeHeaders = emptyMap(),
-        path = tempFile,
-        userMetadata = emptyMap(),
-        encryptionHeaders = emptyMap(),
-        tags = tags,
-        checksumAlgorithm = null,
-        checksum = null,
-        owner = Owner.DEFAULT_OWNER,
-        storageClass = storageClass,
-      )
-
-    runCatching { tempFile.toFile().deleteRecursively() }
-
-    return ResponseEntity
-      .ok()
-      .headers {
-        s3ObjectMetadata.versionHeader(bucket.isVersioningEnabled).let(it::setAll)
-        s3ObjectMetadata.checksumHeader().let(it::setAll)
-        s3ObjectMetadata.encryptionHeaders?.let(it::setAll)
-      }.lastModified(s3ObjectMetadata.lastModified)
-      .eTag(normalizeEtag(s3ObjectMetadata.etag))
-      .build()
+      return ResponseEntity
+        .ok()
+        .headers {
+          s3ObjectMetadata.versionHeader(bucket.isVersioningEnabled).let(it::setAll)
+          s3ObjectMetadata.checksumHeader().let(it::setAll)
+          s3ObjectMetadata.encryptionHeaders?.let(it::setAll)
+        }.lastModified(s3ObjectMetadata.lastModified)
+        .eTag(normalizeEtag(s3ObjectMetadata.etag))
+        .build()
+    } finally {
+      runCatching { tempFile.toFile().deleteRecursively() }
+    }
   }
 
   // ===============================================================================================
@@ -394,43 +395,45 @@ class ObjectController(
     inputStream: InputStream,
   ): ResponseEntity<Void> {
     val (tempFile, calculatedChecksum) = objectService.toTempFile(inputStream, httpHeaders)
-    val (checksum, checksumAlgorithm) = resolveChecksum(httpHeaders, calculatedChecksum)
+    try {
+      val (checksum, checksumAlgorithm) = resolveChecksum(httpHeaders, calculatedChecksum)
 
-    val bucket = bucketService.verifyBucketExists(bucketName)
-    objectService.verifyObjectMatching(bucketName, key.key, match, noneMatch)
-    objectService.verifyMd5(tempFile, contentMd5)
-    checksum?.let {
-      objectService.verifyChecksum(tempFile, it, checksumAlgorithm!!)
+      val bucket = bucketService.verifyBucketExists(bucketName)
+      objectService.verifyObjectMatching(bucketName, key.key, match, noneMatch)
+      objectService.verifyMd5(tempFile, contentMd5)
+      checksum?.let {
+        objectService.verifyChecksum(tempFile, it, checksumAlgorithm!!)
+      }
+
+      val s3ObjectMetadata =
+        objectService.putObject(
+          bucketName = bucketName,
+          key = key.key,
+          contentType = mediaTypeFrom(contentType).toString(),
+          storeHeaders = storeHeadersFrom(httpHeaders),
+          path = tempFile,
+          userMetadata = userMetadataFrom(httpHeaders),
+          encryptionHeaders = encryptionHeadersFrom(httpHeaders),
+          tags = tags,
+          checksumAlgorithm = checksumAlgorithm,
+          checksum = checksum,
+          owner = Owner.DEFAULT_OWNER,
+          storageClass = storageClass,
+        )
+
+      return ResponseEntity
+        .ok()
+        .headers {
+          s3ObjectMetadata.versionHeader(bucket.isVersioningEnabled).let(it::setAll)
+          s3ObjectMetadata.checksumHeader().let(it::setAll)
+          s3ObjectMetadata.encryptionHeaders?.let(it::setAll)
+        }.header(X_AMZ_OBJECT_SIZE, s3ObjectMetadata.size)
+        .lastModified(s3ObjectMetadata.lastModified)
+        .eTag(normalizeEtag(s3ObjectMetadata.etag))
+        .build()
+    } finally {
+      runCatching { tempFile.toFile().deleteRecursively() }
     }
-
-    val s3ObjectMetadata =
-      objectService.putObject(
-        bucketName = bucketName,
-        key = key.key,
-        contentType = mediaTypeFrom(contentType).toString(),
-        storeHeaders = storeHeadersFrom(httpHeaders),
-        path = tempFile,
-        userMetadata = userMetadataFrom(httpHeaders),
-        encryptionHeaders = encryptionHeadersFrom(httpHeaders),
-        tags = tags,
-        checksumAlgorithm = checksumAlgorithm,
-        checksum = checksum,
-        owner = Owner.DEFAULT_OWNER,
-        storageClass = storageClass,
-      )
-
-    runCatching { tempFile.toFile().deleteRecursively() }
-
-    return ResponseEntity
-      .ok()
-      .headers {
-        s3ObjectMetadata.versionHeader(bucket.isVersioningEnabled).let(it::setAll)
-        s3ObjectMetadata.checksumHeader().let(it::setAll)
-        s3ObjectMetadata.encryptionHeaders?.let(it::setAll)
-      }.header(X_AMZ_OBJECT_SIZE, s3ObjectMetadata.size)
-      .lastModified(s3ObjectMetadata.lastModified)
-      .eTag(normalizeEtag(s3ObjectMetadata.etag))
-      .build()
   }
 
   /**

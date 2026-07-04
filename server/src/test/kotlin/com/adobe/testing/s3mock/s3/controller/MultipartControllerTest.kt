@@ -37,6 +37,7 @@ import com.adobe.testing.s3mock.s3.service.BucketService
 import com.adobe.testing.s3mock.s3.service.MultipartService
 import com.adobe.testing.s3mock.s3.service.ObjectService
 import com.adobe.testing.s3mock.s3.store.KmsKeyStore
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
@@ -1510,6 +1511,9 @@ internal class MultipartControllerTest : BaseControllerTest() {
           .content("payload-bytes"),
       ).andExpect(status().isBadRequest)
       .andExpect(content().string(MAPPER.writeValueAsString(from(S3Exception.INVALID_PART_NUMBER))))
+
+    // the temp file must be cleaned up even though the request failed validation
+    assertThat(temp).doesNotExist()
   }
 
   @Test
@@ -1539,6 +1543,9 @@ internal class MultipartControllerTest : BaseControllerTest() {
           .content("payload-bytes"),
       ).andExpect(status().isNotFound)
       .andExpect(content().string(MAPPER.writeValueAsString(from(S3Exception.NO_SUCH_BUCKET))))
+
+    // the temp file must be cleaned up even though the request failed validation
+    assertThat(temp).doesNotExist()
   }
 
   @Test

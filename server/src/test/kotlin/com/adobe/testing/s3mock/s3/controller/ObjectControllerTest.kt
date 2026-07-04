@@ -321,13 +321,17 @@ internal class ObjectControllerTest : BaseControllerTest() {
 
     val testFile = File(UPLOAD_FILE_NAME)
     val base64Digest = DigestUtil.base64Digest(testFile.inputStream())
+    val tempFile =
+      Files.createTempFile("testPutObject_md5_BadRequest", "").also {
+        testFile.copyTo(it.toFile(), overwrite = true)
+      }
 
     whenever(
       objectService.toTempFile(
         isA<InputStream>(),
         isA<HttpHeaders>(),
       ),
-    ).thenReturn(Pair(testFile.toPath(), "checksum"))
+    ).thenReturn(Pair(tempFile, "checksum"))
     doThrow(S3Exception.BAD_REQUEST_MD5)
       .whenever(objectService)
       .verifyMd5(
@@ -345,6 +349,9 @@ internal class ObjectControllerTest : BaseControllerTest() {
           .accept(MediaType.APPLICATION_XML)
           .header(AwsHttpHeaders.CONTENT_MD5, base64Digest + 1),
       ).andExpect(status().isBadRequest)
+
+    // the temp file must be cleaned up even though the request failed validation
+    assertThat(tempFile).doesNotExist()
   }
 
   @Test

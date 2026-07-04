@@ -71,8 +71,10 @@ abstract class ServiceBase {
   fun toTempFile(inputStream: InputStream): Pair<Path, String?> =
     try {
       val tempFile = Files.createTempFile("ObjectService", "toTempFile")
-      tempFile.outputStream().use {
-        inputStream.transferTo(it)
+      tempFile.outputStream().use { os ->
+        inputStream.use {
+          it.transferTo(os)
+        }
       }
       tempFile to null
     } catch (e: IOException) {

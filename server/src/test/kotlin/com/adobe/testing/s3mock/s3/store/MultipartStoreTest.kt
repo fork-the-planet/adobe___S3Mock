@@ -248,6 +248,59 @@ internal class MultipartStoreTest : StoreTestBase() {
 
   @Test
   @Throws(IOException::class)
+  fun `completeMultipartUpload throws IllegalStateException when a part file is missing, closing already-opened part streams`() {
+    val fileName = "PartFile"
+    val id = managedId()
+    val tempFile1 = Files.createTempFile("", "")
+    "Part1".toByteArray().inputStream().transferTo(tempFile1.outputStream())
+    val tempFile2 = Files.createTempFile("", "")
+    "Part2".toByteArray().inputStream().transferTo(tempFile2.outputStream())
+    val bucket = metadataFrom(TEST_BUCKET_NAME)
+    val multipartUpload =
+      multipartStore.createMultipartUpload(
+        bucket,
+        fileName,
+        id,
+        DEFAULT_CONTENT_TYPE,
+        storeHeaders(),
+        TEST_OWNER,
+        TEST_INITIATOR,
+        NO_USER_METADATA,
+        NO_ENCRYPTION_HEADERS,
+        NO_TAGS,
+        StorageClass.STANDARD,
+        NO_CHECKSUMTYPE,
+        NO_CHECKSUM_ALGORITHM,
+      )
+    val uploadId = UUID.fromString(multipartUpload.uploadId)
+    val multipartUploadInfo = multipartStore.getMultipartUploadInfo(bucket, uploadId)
+    multipartStore.putPart(bucket, id, uploadId, 1, tempFile1, NO_ENCRYPTION_HEADERS)
+    multipartStore.putPart(bucket, id, uploadId, 2, tempFile2, NO_ENCRYPTION_HEADERS)
+
+    // simulate part 2's file disappearing (e.g. a concurrent abort) after part 1 has already
+    // been opened for reading by completeMultipartUpload's toInputStream
+    val part2File = Paths.get(bucket.path.toString(), MultipartStore.MULTIPARTS_FOLDER, uploadId.toString(), "2.part")
+    Files.delete(part2File)
+
+    assertThatThrownBy {
+      multipartStore.completeMultipartUpload(
+        bucket,
+        fileName,
+        id,
+        uploadId,
+        getParts(2),
+        NO_ENCRYPTION_HEADERS,
+        multipartUploadInfo,
+        "location",
+        NO_CHECKSUM,
+        NO_CHECKSUMTYPE,
+        NO_CHECKSUM_ALGORITHM,
+      )
+    }.isInstanceOf(IllegalStateException::class.java)
+  }
+
+  @Test
+  @Throws(IOException::class)
   fun `MultipartUpload creates an object in S3Mock`() {
     val fileName = "PartFile"
     val id = managedId()

@@ -237,38 +237,40 @@ class MultipartController(
     inputStream: InputStream,
   ): ResponseEntity<Void> {
     val (tempFile, sdkChecksum) = multipartService.toTempFile(inputStream, httpHeaders)
-    bucketService.verifyBucketExists(bucketName)
-    multipartService.verifyMultipartUploadExists(bucketName, uploadId)
-    val partNum = multipartService.verifyPartNumberLimits(partNumber)
+    try {
+      bucketService.verifyBucketExists(bucketName)
+      multipartService.verifyMultipartUploadExists(bucketName, uploadId)
+      val partNum = multipartService.verifyPartNumberLimits(partNumber)
 
-    val (checksum, checksumAlgorithm) = resolveChecksum(httpHeaders, sdkChecksum)
+      val (checksum, checksumAlgorithm) = resolveChecksum(httpHeaders, sdkChecksum)
 
-    if (checksum != null && checksumAlgorithm != null) {
-      multipartService.verifyChecksum(tempFile, checksum, checksumAlgorithm)
+      if (checksum != null && checksumAlgorithm != null) {
+        multipartService.verifyChecksum(tempFile, checksum, checksumAlgorithm)
+      }
+
+      val etag =
+        multipartService.putPart(
+          bucketName,
+          key.key,
+          uploadId,
+          partNum,
+          tempFile,
+          encryptionHeadersFrom(httpHeaders),
+          checksum,
+          checksumAlgorithm,
+        )
+
+      val checksumHeader = checksumHeaderFrom(checksum, checksumAlgorithm)
+      return ResponseEntity
+        .ok()
+        .headers {
+          checksumHeader.let(it::setAll)
+          encryptionHeadersFrom(httpHeaders).let(it::setAll)
+        }.eTag(normalizeEtag(etag))
+        .build()
+    } finally {
+      runCatching { tempFile.toFile().deleteRecursively() }
     }
-
-    val etag =
-      multipartService.putPart(
-        bucketName,
-        key.key,
-        uploadId,
-        partNum,
-        tempFile,
-        encryptionHeadersFrom(httpHeaders),
-        checksum,
-        checksumAlgorithm,
-      )
-
-    runCatching { tempFile.toFile().deleteRecursively() }
-
-    val checksumHeader = checksumHeaderFrom(checksum, checksumAlgorithm)
-    return ResponseEntity
-      .ok()
-      .headers {
-        checksumHeader.let(it::setAll)
-        encryptionHeadersFrom(httpHeaders).let(it::setAll)
-      }.eTag(normalizeEtag(etag))
-      .build()
   }
 
   /**

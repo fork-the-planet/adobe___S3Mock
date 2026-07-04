@@ -45,4 +45,6 @@ class BoundedInputStream(
     if (count != -1) bytesRead += count
     return count
   }
+
+  override fun close() = input.close()
 }

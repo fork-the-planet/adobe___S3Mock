@@ -609,15 +609,18 @@ open class MultipartStore(
     const val MULTIPARTS_FOLDER: String = "multiparts"
 
     private fun toInputStream(paths: List<Path>): InputStream {
-      val inputs =
-        paths.map { path ->
-          try {
-            path.inputStream()
-          } catch (e: IOException) {
-            throw IllegalStateException("Can't access path $path", e)
-          }
+      // close any already-opened part streams if a later path fails to open, instead of
+      // leaking their file descriptors until GC finalizes them.
+      val opened = mutableListOf<InputStream>()
+      for (path in paths) {
+        try {
+          opened += path.inputStream()
+        } catch (e: IOException) {
+          opened.forEach { runCatching { it.close() } }
+          throw IllegalStateException("Can't access path $path", e)
         }
-      return inputs.reduceOrNull { combined, next -> SequenceInputStream(combined, next) }
+      }
+      return opened.reduceOrNull { combined, next -> SequenceInputStream(combined, next) }
         ?: InputStream.nullInputStream()
     }
   }
