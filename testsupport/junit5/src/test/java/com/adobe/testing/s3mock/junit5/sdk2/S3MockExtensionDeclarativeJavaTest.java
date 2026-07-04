@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017-2025 Adobe.
+ *  Copyright 2017-2026 Adobe.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package com.adobe.testing.s3mock.junit5.sdk2;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.adobe.testing.s3mock.junit5.S3MockExtension;
-import com.adobe.testing.s3mock.util.DigestUtil;
+import com.adobe.testing.s3mock.s3.util.DigestUtil;
 import java.io.File;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Nested;

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017-2025 Adobe.
+ *  Copyright 2017-2026 Adobe.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,10 +13,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package com.adobe.testing.s3mock.its
 
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.util.ChecksumUtil
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Disabled
@@ -510,7 +510,7 @@ internal class GetPutDeleteObjectIT : S3TestBase() {
   @Test
   @S3VerifiedSuccess(year = 2025)
   fun `PutObject and getObjectAttributes succeeds`(testInfo: TestInfo) {
-    val expectedChecksum = DigestUtil.checksumFor(UPLOAD_FILE_PATH, DefaultChecksumAlgorithm.SHA1)
+    val expectedChecksum = ChecksumUtil.checksumFor(UPLOAD_FILE_PATH, DefaultChecksumAlgorithm.SHA1)
     val bucketName = givenBucket(testInfo)
 
     val eTag =
@@ -594,7 +594,7 @@ internal class GetPutDeleteObjectIT : S3TestBase() {
     s3Client: S3Client,
   ) {
     val uploadFile = File(testFileName)
-    val expectedChecksum = DigestUtil.checksumFor(uploadFile.toPath(), checksumAlgorithm)
+    val expectedChecksum = ChecksumUtil.checksumFor(uploadFile.toPath(), checksumAlgorithm)
     val bucketName = givenBucket(randomName)
 
     s3Client
@@ -680,7 +680,7 @@ internal class GetPutDeleteObjectIT : S3TestBase() {
     s3Client: S3AsyncClient,
   ) {
     val uploadFile = File(testFileName)
-    val expectedChecksum = DigestUtil.checksumFor(uploadFile.toPath(), checksumAlgorithm)
+    val expectedChecksum = ChecksumUtil.checksumFor(uploadFile.toPath(), checksumAlgorithm)
     val bucketName = givenBucket(randomName)
 
     s3Client
@@ -741,7 +741,7 @@ internal class GetPutDeleteObjectIT : S3TestBase() {
     checksumAlgorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
     testInfo: TestInfo,
   ) {
-    val expectedChecksum = DigestUtil.checksumFor(UPLOAD_FILE_PATH, checksumAlgorithm)
+    val expectedChecksum = ChecksumUtil.checksumFor(UPLOAD_FILE_PATH, checksumAlgorithm)
     val bucketName = givenBucket(testInfo)
 
     s3Client

@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.dto
 
-import com.adobe.testing.s3mock.DtoTestUtil
+import com.adobe.testing.s3mock.common.DtoTestUtil
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo
 

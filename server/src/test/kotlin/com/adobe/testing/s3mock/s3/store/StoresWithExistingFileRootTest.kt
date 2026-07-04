@@ -1,0 +1,145 @@
+/*
+ *  Copyright 2017-2026 Adobe.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package com.adobe.testing.s3mock.s3.store
+
+import com.adobe.testing.s3mock.s3.dto.ChecksumType
+import com.adobe.testing.s3mock.s3.dto.ObjectOwnership
+import com.adobe.testing.s3mock.s3.dto.Owner
+import com.adobe.testing.s3mock.s3.dto.StorageClass
+import com.adobe.testing.s3mock.s3.store.StoresWithExistingFileRootTest.TestConfig
+import org.assertj.core.api.AssertionsForClassTypes.assertThat
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
+import org.springframework.test.context.bean.override.mockito.MockitoBean
+import software.amazon.awssdk.regions.Region
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.KotlinModule
+import java.io.File
+import java.util.UUID
+
+@MockitoBean(types = [KmsKeyStore::class])
+@SpringBootTest(
+  classes = [StoreConfiguration::class, TestConfig::class],
+  webEnvironment = SpringBootTest.WebEnvironment.NONE,
+)
+internal class StoresWithExistingFileRootTest : StoreTestBase() {
+  @Autowired
+  private lateinit var bucketStore: BucketStore
+
+  @Autowired
+  private lateinit var testBucketStore: BucketStore
+
+  @Autowired
+  private lateinit var objectStore: ObjectStore
+
+  @Autowired
+  private lateinit var testObjectStore: ObjectStore
+
+  @Test
+  fun testBucketStoreWithExistingRoot() {
+    bucketStore.createBucket(
+      TEST_BUCKET_NAME,
+      false,
+      ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      "us-east-1",
+      null,
+      null,
+    )
+    val bucket = bucketStore.getBucketMetadata(TEST_BUCKET_NAME)
+
+    // lockFor() creates the lock on demand — getBucketMetadata no longer throws NPE on a fresh store
+    testBucketStore.getBucketMetadata(TEST_BUCKET_NAME).also {
+      assertThat(it.creationDate).isEqualTo(bucket.creationDate)
+      assertThat(it.path).isEqualTo(bucket.path)
+    }
+
+    testBucketStore.loadBuckets(listOf(TEST_BUCKET_NAME))
+    testBucketStore.getBucketMetadata(TEST_BUCKET_NAME).also {
+      assertThat(it.creationDate).isEqualTo(bucket.creationDate)
+      assertThat(it.path).isEqualTo(bucket.path)
+    }
+  }
+
+  @Test
+  fun testObjectStoreWithExistingRoot() {
+    val sourceFile = File(TEST_FILE_PATH)
+    val path = sourceFile.toPath()
+    val id = UUID.randomUUID()
+    val name = sourceFile.name
+    val bucketMetadata = metadataFrom(TEST_BUCKET_NAME)
+
+    objectStore.storeS3ObjectMetadata(
+      bucketMetadata,
+      id,
+      name,
+      TEXT_PLAIN,
+      storeHeaders(),
+      path,
+      emptyMap(),
+      emptyMap(),
+      null,
+      emptyList(),
+      null,
+      null,
+      Owner.DEFAULT_OWNER,
+      StorageClass.STANDARD,
+      ChecksumType.FULL_OBJECT,
+    )
+
+    // lockFor() creates the lock on demand — getS3ObjectMetadata no longer throws NPE on a fresh store
+    val originalMeta = objectStore.getS3ObjectMetadata(bucketMetadata, id, null)!!
+    testObjectStore.loadObjects(bucketMetadata, listOf(originalMeta.id))
+
+    val reloadedMeta = testObjectStore.getS3ObjectMetadata(bucketMetadata, id, null)!!
+    assertThat(reloadedMeta.modificationDate).isEqualTo(originalMeta.modificationDate)
+    assertThat(reloadedMeta.etag).isEqualTo(originalMeta.etag)
+  }
+
+  @TestConfiguration
+  open class TestConfig {
+    @Bean
+    open fun testBucketStore(
+      rootFolder: File,
+      objectMapper: ObjectMapper,
+    ): BucketStore =
+      BucketStore(
+        rootFolder,
+        StoreConfiguration.S3_OBJECT_DATE_FORMAT,
+        Region.EU_CENTRAL_1.id(),
+        objectMapper,
+      )
+
+    @Bean
+    open fun testObjectStore(objectMapper: ObjectMapper): ObjectStore = ObjectStore(StoreConfiguration.S3_OBJECT_DATE_FORMAT, objectMapper)
+
+    @Bean
+    open fun objectMapper(): ObjectMapper =
+      JsonMapper
+        .builder()
+        // Ensure Kotlin/JavaTime/etc. modules are discovered similarly to Boot
+        .addModule(KotlinModule.Builder().build())
+        .findAndAddModules()
+        // Align with Boot defaults
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        .build()
+  }
+}

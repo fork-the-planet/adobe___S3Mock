@@ -8,7 +8,8 @@ Whenever a 3rd party library is updated, S3Mock will update its MINOR version.
 * [PLANNED - 6.x - RELEASE TBD](#planned---6x---release-tbd)
   * [Planned changes](#planned-changes)
 * [CURRENT - 5.x - THIS VERSION IS UNDER ACTIVE DEVELOPMENT](#current---5x---this-version-is-under-active-development)
-  * [5.2.0 - PLANNED](#520---planned)
+  * [5.3.0 - PLANNED](#530---planned)
+  * [5.2.0](#520)
   * [5.1.0](#510)
   * [5.0.0](#500)
 * [DEPRECATED - 4.x](#deprecated---4x)
@@ -149,7 +150,16 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
 
 **The current major version 5 will receive new features, dependency updates and bug fixes on a continuous basis. We usually follow the Spring Boot release cycle.**
 
-## 5.2.0 - PLANNED
+## 5.3.0 - PLANNED
+
+* Features and fixes
+  * TBD
+* Version updates (deliverable dependencies)
+  * TBD
+* Version updates (build dependencies)
+  * TBD
+
+## 5.2.0
 
 * Features and fixes
   * feat: Persist per-part checksums uploaded via `UploadPart` as `.partmeta.json` sidecar files so that `CompleteMultipartUpload` can pass without clients re-sending per-part checksums for `FULL_OBJECT` type uploads. ([#3034](https://github.com/adobe/S3Mock/issues/3034))
@@ -158,10 +168,27 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * feat: Default `ChecksumType` is now derived per algorithm when not explicitly specified (`CRC64NVME` → `FULL_OBJECT`; `CRC32`/`CRC32C`/`SHA1`/`SHA256` → `COMPOSITE`), matching real S3 behavior.
   * feat: Reject invalid algorithm/type combinations at `CreateMultipartUpload` with HTTP 400 (`COMPOSITE`+`CRC64NVME`, `FULL_OBJECT`+`SHA1`, `FULL_OBJECT`+`SHA256`).
   * feat: validated all tests in MultipartIT.kt against real S3 backend.
+  * fix: `x-amz-delete-marker: true` is now correctly returned when deleting a versioned object that is itself a delete marker (previously returned `false`).
+  * fix: `bucket-owner-full-control` canned ACL now correctly grants `FULL_CONTROL` to the bucket owner (was incorrectly granting `READ`, same as `bucket-owner-read`).
+  * fix: `ListObjectVersions` no longer skips objects whose key contains characters requiring URL-encoding — a decoding mismatch caused their version metadata lookup to fail, returning an empty version list for those keys.
+  * fix: `CompleteMultipartUpload` now returns a proper `NoSuchUpload` S3 error instead of an internal server error when the upload result cannot be resolved.
+  * fix: `GetObjectLegalHold` and `GetObjectRetention` now correctly return a `404 NotFound` when only the other lock type is set on the object, instead of incorrectly returning `200 OK` with an empty body.
+  * fix: `ListObjectVersions` now URL-encodes the `Delimiter` field in the response when `encoding-type=url` is requested, consistent with `Prefix`, `KeyMarker`, and object keys.
+  * fix: `PutObjectRetention`/`GetObjectRetention` now parse `RetainUntilDate` with full nanosecond precision instead of truncating to milliseconds, fixing incorrect retention timestamp comparisons.
+  * fix: hardened internal per-key locking (bucket/object/multipart/vector stores) against unbounded memory growth and a race that could cause NPEs or double-locking under concurrent access — no observable API change.
+  * fix: `ListBuckets`/`ListObjectsV2` no longer leak an entry into an in-memory pagination-state map on every truncated listing that isn't paged through to exhaustion — the "continue after" marker is now encoded directly into the continuation token instead of being tracked server-side, so long-lived servers under sustained listing traffic no longer grow memory unboundedly.
+  * fix: `PutObject`/`PostObject`/`UploadPart` no longer leak the request's temp file on disk when a later validation (bucket existence, MD5/checksum mismatch, invalid part number, etc.) rejects the request — the temp file is now always cleaned up, not just on the success path.
+  * fix: `CompleteMultipartUpload` now closes already-opened part-file streams if a later part fails to open, instead of leaking their file descriptors.
+  * fix: `ListBuckets` now rejects a non-positive `max-buckets` with `400 Bad Request` instead of an unhandled exception.
+  * fix: removed a log statement that echoed the raw, attacker-controlled `Content-MD5` request header, which could be used to forge log entries.
 * Version updates (deliverable dependencies)
-  * TBD
+  * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17
+  * Bump aws.sdk.kotlin:s3-jvm from 1.6.96 to 1.6.103
 * Version updates (build dependencies)
-  * TBD
+  * Bump com.puppycrawl.tools:checkstyle from 13.6.0 to 13.7.0
+  * Bump actions/setup-java from 5.3.0 to 5.4.0
+  * Bump docker/setup-qemu-action from 4.1.0 to 4.2.0
+  * Bump github/codeql-action from 4.36.2 to 4.36.3
 
 ## 5.1.0
 

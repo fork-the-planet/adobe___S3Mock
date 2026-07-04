@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.dto
 
-import com.adobe.testing.S3Verified
+import com.adobe.testing.s3mock.common.S3Verified
 import tools.jackson.databind.JsonNode
 
 /**

@@ -1,0 +1,40 @@
+/*
+ *  Copyright 2017-2026 Adobe.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+package com.adobe.testing.s3mock.s3.dto
+
+import com.adobe.testing.s3mock.common.S3Verified
+import com.adobe.testing.s3mock.s3.dto.serialization.InstantDeserializer
+import com.fasterxml.jackson.annotation.JsonFormat
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonRootName
+import tools.jackson.databind.annotation.JsonDeserialize
+import java.time.Instant
+
+/**
+ * [API Reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_control_S3Retention.html).
+ * For unknown reasons, the timestamps in the Retention are serialized in Nanoseconds instead of
+ * Milliseconds, like everywhere else.
+ */
+@S3Verified(year = 2025)
+@JsonRootName("Retention", namespace = S3_NS)
+data class Retention(
+  @param:JsonProperty("Mode", namespace = S3_NS)
+  val mode: Mode?,
+  @param:JsonDeserialize(using = InstantDeserializer::class)
+  @param:JsonFormat(pattern = S3_DATE_FORMAT, timezone = "UTC")
+  @param:JsonProperty("RetainUntilDate", namespace = S3_NS)
+  val retainUntilDate: Instant?,
+)

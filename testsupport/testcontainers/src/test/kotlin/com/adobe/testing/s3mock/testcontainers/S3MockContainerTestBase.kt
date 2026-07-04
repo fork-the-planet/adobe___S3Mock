@@ -15,7 +15,7 @@
  */
 package com.adobe.testing.s3mock.testcontainers
 
-import com.adobe.testing.s3mock.util.DigestUtil
+import com.adobe.testing.s3mock.s3.util.DigestUtil
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo

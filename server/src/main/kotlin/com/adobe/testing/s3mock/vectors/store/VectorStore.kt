@@ -15,6 +15,7 @@
  */
 package com.adobe.testing.s3mock.vectors.store
 
+import com.adobe.testing.s3mock.common.StripedLocks
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.io.File
@@ -23,7 +24,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.util.HexFormat
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
 
@@ -38,7 +38,9 @@ class VectorStore(
   private val vectorIndexStore: VectorIndexStore,
   private val objectMapper: ObjectMapper,
 ) {
-  private val lockStore: MutableMap<String, Any> = ConcurrentHashMap()
+  private val locks = StripedLocks()
+
+  private fun lockFor(key: String): Any = locks.lockFor(key)
 
   data class StoredVector(
     val key: String,
@@ -54,8 +56,7 @@ class VectorStore(
     metadata: Map<String, Any?>?,
   ) {
     val lockKey = lockKey(bucketName, indexName, key)
-    lockStore.putIfAbsent(lockKey, Any())
-    synchronized(lockStore[lockKey]!!) {
+    synchronized(lockFor(lockKey)) {
       val dir = getVectorDir(bucketName, indexName, key)
       dir.mkdirs()
       dir.resolve(KEY_FILE).writeText(key, Charsets.UTF_8)
@@ -91,10 +92,11 @@ class VectorStore(
     indexName: String,
     key: String,
   ) {
+    val dir = getVectorDir(bucketName, indexName, key)
+    if (!dir.exists()) return
     val lockKey = lockKey(bucketName, indexName, key)
-    synchronized(lockStore[lockKey]!!) {
-      getVectorDir(bucketName, indexName, key).deleteRecursively()
-      lockStore.remove(lockKey)
+    synchronized(lockFor(lockKey)) {
+      dir.deleteRecursively()
     }
   }
 
