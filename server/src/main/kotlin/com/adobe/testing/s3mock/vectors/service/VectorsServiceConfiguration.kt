@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
-import software.amazon.awssdk.regions.Region
 
 @Configuration
 @Profile("vectors")
@@ -30,15 +29,15 @@ class VectorsServiceConfiguration {
   @Bean
   fun vectorBucketService(
     vectorBucketStore: VectorBucketStore,
-    @Value($$"${com.adobe.testing.s3mock.store.region}") region: Region?,
-  ): VectorBucketService = VectorBucketService(vectorBucketStore, (region ?: Region.US_EAST_1).id())
+    @Value($$"${com.adobe.testing.s3mock.store.region}") region: String?,
+  ): VectorBucketService = VectorBucketService(vectorBucketStore, region ?: "us-east-1")
 
   @Bean
   fun vectorIndexService(
     vectorBucketService: VectorBucketService,
     vectorIndexStore: VectorIndexStore,
-    @Value($$"${com.adobe.testing.s3mock.store.region}") region: Region?,
-  ): VectorIndexService = VectorIndexService(vectorBucketService, vectorIndexStore, (region ?: Region.US_EAST_1).id())
+    @Value($$"${com.adobe.testing.s3mock.store.region}") region: String?,
+  ): VectorIndexService = VectorIndexService(vectorBucketService, vectorIndexStore, region ?: "us-east-1")
 
   @Bean
   fun vectorService(

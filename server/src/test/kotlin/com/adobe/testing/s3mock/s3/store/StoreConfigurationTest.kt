@@ -21,7 +21,6 @@ import com.adobe.testing.s3mock.s3.model.BucketMetadata
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import software.amazon.awssdk.regions.Region
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
@@ -40,7 +39,7 @@ internal class StoreConfigurationTest {
   ) {
     val initialBucketName = "initialBucketName"
 
-    val properties = StoreProperties(false, "", setOf(), listOf(initialBucketName), Region.EU_CENTRAL_1)
+    val properties = StoreProperties(false, "", setOf(), listOf(initialBucketName), "eu-central-1")
     val iut = StoreConfiguration()
     val bucketStore =
       iut.bucketStore(
@@ -48,7 +47,7 @@ internal class StoreConfigurationTest {
         tempDir.toFile(),
         listOf(),
         OBJECT_MAPPER,
-        Region.EU_CENTRAL_1,
+        "eu-central-1",
       )
 
     assertThat(bucketStore.getBucketMetadata(initialBucketName).name).isEqualTo(initialBucketName)
@@ -85,7 +84,7 @@ internal class StoreConfigurationTest {
 
     val initialBucketName = "initialBucketName"
 
-    val properties = StoreProperties(false, "", setOf(), listOf(initialBucketName), Region.EU_CENTRAL_1)
+    val properties = StoreProperties(false, "", setOf(), listOf(initialBucketName), "eu-central-1")
     val iut = StoreConfiguration()
     val bucketStore =
       iut.bucketStore(
@@ -93,7 +92,7 @@ internal class StoreConfigurationTest {
         tempDir.toFile(),
         listOf(existingBucketName),
         OBJECT_MAPPER,
-        Region.EU_CENTRAL_1,
+        "eu-central-1",
       )
 
     assertThat(bucketStore.getBucketMetadata(initialBucketName).name)
@@ -113,7 +112,7 @@ internal class StoreConfigurationTest {
   fun bucketCreation_ignoresBlankInitialBuckets(
     @TempDir tempDir: Path,
   ) {
-    val properties = StoreProperties(false, "", setOf(), listOf(""), Region.EU_CENTRAL_1)
+    val properties = StoreProperties(false, "", setOf(), listOf(""), "eu-central-1")
     val iut = StoreConfiguration()
     val bucketStore =
       iut.bucketStore(
@@ -121,7 +120,7 @@ internal class StoreConfigurationTest {
         tempDir.toFile(),
         listOf(),
         OBJECT_MAPPER,
-        Region.EU_CENTRAL_1,
+        "eu-central-1",
       )
 
     assertThat(bucketStore.listBuckets()).isEmpty()

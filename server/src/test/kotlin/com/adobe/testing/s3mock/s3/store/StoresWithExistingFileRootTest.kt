@@ -28,7 +28,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import software.amazon.awssdk.regions.Region
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
@@ -124,7 +123,7 @@ internal class StoresWithExistingFileRootTest : StoreTestBase() {
       BucketStore(
         rootFolder,
         StoreConfiguration.S3_OBJECT_DATE_FORMAT,
-        Region.EU_CENTRAL_1.id(),
+        "eu-central-1",
         objectMapper,
       )
 
