@@ -16,17 +16,23 @@
 
 package com.adobe.testing.s3mock.testcontainers;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestInstance;
 
 /**
  * This tests / shows how to manually start and stop the S3MockContainer.
  * Tests are inherited from base class.
+ *
+ * <p>The container is started once in {@code setUp} and stopped in {@code tearDown}, so the single
+ * instance is reused across all test methods in this class. {@link TestInstance.Lifecycle#PER_CLASS}
+ * lets the {@code @BeforeAll} / {@code @AfterAll} methods be non-static and share instance state.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class S3MockContainerManualJavaTest extends S3MockContainerJavaTestBase {
   private S3MockContainer s3Mock;
 
-  @BeforeEach
+  @BeforeAll
   void setUp() {
     s3Mock = withDebugLogging(new S3MockContainer(S3MOCK_VERSION)
             .withValidKmsKeys(TEST_ENC_KEYREF)
@@ -38,7 +44,7 @@ public class S3MockContainerManualJavaTest extends S3MockContainerJavaTestBase {
     s3Client = createS3ClientV2(endpoint);
   }
 
-  @AfterEach
+  @AfterAll
   void tearDown() {
     s3Mock.stop();
   }

@@ -22,21 +22,29 @@ import org.testcontainers.junit.jupiter.Testcontainers
 /**
  * This shows how to let JUnit 5 Jupiter start and stop the S3MockContainer.
  * Tests are inherited from base class.
+ *
+ * The container is declared as a static `@Container`, so Jupiter starts it once before all tests in
+ * the class and stops it after the last test - the single container instance is reused across all
+ * test methods. Use a non-static (instance) `@Container` field instead if a test needs a fresh
+ * container per method.
  */
 @Testcontainers
 internal class S3MockContainerJupiterTest : S3MockContainerTestBase() {
-  // Container will be started before each test method and stopped after
-  @Container
-  private val s3Mock: S3MockContainer =
-    S3MockContainer(S3MOCK_VERSION)
-      .withValidKmsKeys(TEST_ENC_KEYREF)
-      .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
-      .withDebugLogging()
-
   @BeforeEach
   fun setUp() {
     // Must create S3Client after S3MockContainer is started, otherwise we can't request the random
     // locally mapped port for the endpoint
     s3Client = createS3ClientV2(s3Mock.httpsEndpoint)
+  }
+
+  companion object {
+    // Container is started once before all tests and stopped after the last test.
+    @Container
+    @JvmStatic
+    private val s3Mock: S3MockContainer =
+      S3MockContainer(S3MOCK_VERSION)
+        .withValidKmsKeys(TEST_ENC_KEYREF)
+        .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
+        .withDebugLogging()
   }
 }
