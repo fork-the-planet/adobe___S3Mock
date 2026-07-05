@@ -43,7 +43,7 @@ Both representations refer to the same underlying `StoreProperties` / `Controlle
 
 ## Footguns
 
-**`withVolumeAsRoot(root)`**: Docker must have read/write permission on the host path. If Docker cannot access the path, the container starts but writes are silently discarded — no error is thrown. Verify Docker Desktop sharing settings before using this.
+**`withVolumeAsRoot(root)`**: Docker must have read/write permission on the host path. Because the S3Mock image is built by Cloud Native Buildpacks and runs as the non-root `cnb` user, this method forces the container to run as `root` so it can write into the bind-mounted host directory regardless of the host directory's UID ownership (otherwise, on Linux, every write fails with HTTP 500). Verify Docker Desktop sharing settings before using this — if Docker cannot access the path at all, the container starts but writes are silently discarded.
 
 **`httpsEndpoint` requires trust-all-certificates**: `S3MockContainer` uses a self-signed SSL certificate. Any AWS SDK client connecting to `httpsEndpoint` must disable certificate validation (see usage example above). Forgetting this produces a `SSLHandshakeException` that looks like a connectivity issue.
 

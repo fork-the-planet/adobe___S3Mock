@@ -189,6 +189,7 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * chore: Modernized the Docker image build. 
     * The hand-written multi-stage `Dockerfile` and `docker buildx` shell scripts (and the entire `docker` module) were replaced by the Spring Boot Maven plugin's `build-image` goal.
     * The build is using the BellSoft Alpaquita Linux (musl) Cloud Native Buildpacks builder (`bellsoft/buildpacks.builder:musl`) instead of the default Paketo `noble-java-tiny` builder, and the jlink JRE is trimmed further (`--vm=server` drops the unused client/minimal JVMs, `--compress=zip-9` shrinks the module layer).
+    * fix: `S3MockContainer.withVolumeAsRoot(...)` now runs the container as `root`. Because the Buildpacks image runs as the non-root `cnb` user, writes to a host-owned bind mount previously failed with HTTP 500 on Linux (e.g. in CI) — the container could not write into a directory it did not own.
   * chore: The `integration-tests` module now starts one S3Mock container per test class via Testcontainers instead of the fabric8 `docker-maven-plugin`, giving each test class full state isolation.
 * Version updates (deliverable dependencies)
   * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17

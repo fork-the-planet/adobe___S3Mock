@@ -93,10 +93,17 @@ class S3MockContainer(
    * Mount a volume from the host system for the S3Mock to use as the "root".
    * Docker must be able to read / write into this directory (!)
    *
+   * The container is forced to run as `root` for this mount because the S3Mock OCI image is built
+   * by Cloud Native Buildpacks and runs as the non-root `cnb` user by default. On Linux, a
+   * bind-mounted host directory keeps its host ownership, so the non-root user cannot write into it
+   * and every write fails with an HTTP 500. Running as `root` sidesteps the host/container UID
+   * mismatch and restores the writable behaviour of the previous root-based image.
+   *
    * @param root absolute path in host system
    */
   fun withVolumeAsRoot(root: String): S3MockContainer {
     withEnv(PROP_ROOT_DIRECTORY, "/s3mockroot")
+    withCreateContainerCmdModifier { it.withUser("0:0") }
     return withFileSystemBind(root, "/s3mockroot", BindMode.READ_WRITE)
   }
 
