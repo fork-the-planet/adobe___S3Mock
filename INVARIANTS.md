@@ -68,6 +68,8 @@ No performance SLAs are defined for S3Mock. It is a local testing tool, not a th
 
 - Every code change must include unit tests (`*Test.kt` in `server/`) covering the new or modified logic — *Enforced by: human review*
 
+- Spring-managed components (services, stores, controllers, filters, `@ControllerAdvice`) must be tested with the Spring test harness — `@SpringBootTest`/`@WebMvcTest` + `@MockitoBean`, extending `ServiceTestBase`/`StoreTestBase`/`BaseControllerTest` — never standard Mockito unit tests (`@ExtendWith(MockitoExtension)` + `@Mock` + `@InjectMocks`). Plain classes with no injected collaborators (most `dto`/`model`/`util`) may use a plain unit test. — *Enforced by: ArchUnit `noStandardMockitoUnitTests` (`make test`)*
+
 - Every behavior observable via the S3 HTTP API must be covered by an integration test (`*IT.kt` in `integration-tests/`) — *Enforced by: human review*
 
 ---

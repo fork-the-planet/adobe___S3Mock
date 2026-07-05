@@ -41,6 +41,16 @@ Use `@SpringBootTest` with `@MockitoBean` for mocking. Extend the appropriate ba
 | `StoreTestBase` | Store-layer tests |
 | `BaseControllerTest` | Controller slice tests (`@WebMvcTest`) |
 
+**Which harness to use — decide by whether the class is a Spring bean:**
+
+| Class under test | Harness | Base class |
+|---|---|---|
+| Service, store, filter, `@ControllerAdvice` (Spring bean with injected collaborators) | `@SpringBootTest` + `@MockitoBean` | `ServiceTestBase` / `StoreTestBase` |
+| Controller (`@RestController`) | `@WebMvcTest` + `@MockitoBean` | `BaseControllerTest` |
+| Plain class with no injected collaborators (most `dto`/`model`/`util`) | plain unit test | none |
+
+Standard Mockito unit-test style (`@ExtendWith(MockitoExtension)` + `@Mock` + `@InjectMocks`) is **banned for Spring-managed components** — it bypasses the Spring context and bean wiring. This is enforced by the `noStandardMockitoUnitTests` ArchUnit rule (`make test`); see [INVARIANTS.md](../INVARIANTS.md). Collaborator stubbing still uses mockito-kotlin (`mock()` / `whenever(...)`), which does not rely on those annotations.
+
 Name the class under test **`iut`** (implementation under test); inject with `@Autowired`:
 
 ```kotlin
