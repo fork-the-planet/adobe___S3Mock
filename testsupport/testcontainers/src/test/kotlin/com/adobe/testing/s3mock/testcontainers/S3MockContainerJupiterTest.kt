@@ -31,6 +31,7 @@ internal class S3MockContainerJupiterTest : S3MockContainerTestBase() {
     S3MockContainer(S3MOCK_VERSION)
       .withValidKmsKeys(TEST_ENC_KEYREF)
       .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
+      .withDebugLogging()
 
   @BeforeEach
   fun setUp() {

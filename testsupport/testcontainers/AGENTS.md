@@ -72,3 +72,12 @@ src/main/kotlin/.../testcontainers/
 |---|---|---|
 | HTTP | 9090 | `httpEndpoint`, `httpServerPort` |
 | HTTPS | 9191 | `httpsEndpoint`, `httpsServerPort` |
+| Vectors HTTP | 9092 | `vectorsHttpEndpoint`, `vectorsHttpServerPort` |
+| Vectors HTTPS | 9193 | `vectorsHttpsEndpoint`, `vectorsHttpsServerPort` |
+
+All four ports are exposed by default, but the vectors ports only serve requests when the `vectors`
+Spring profile is active — call `withVectors()` to enable it.
+
+Spring profiles compose: `withVectors()`, `withDebug()` (activates the server's `debug` profile,
+which also groups in `actuator`), and `withSpringProfiles(...)` accumulate into a single
+comma-separated `SPRING_PROFILES_ACTIVE` value (de-duplicated) rather than overwriting each other.

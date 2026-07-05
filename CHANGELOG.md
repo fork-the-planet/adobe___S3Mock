@@ -168,6 +168,8 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * feat: Default `ChecksumType` is now derived per algorithm when not explicitly specified (`CRC64NVME` → `FULL_OBJECT`; `CRC32`/`CRC32C`/`SHA1`/`SHA256` → `COMPOSITE`), matching real S3 behavior.
   * feat: Reject invalid algorithm/type combinations at `CreateMultipartUpload` with HTTP 400 (`COMPOSITE`+`CRC64NVME`, `FULL_OBJECT`+`SHA1`, `FULL_OBJECT`+`SHA256`).
   * feat: validated all tests in MultipartIT.kt against real S3 backend.
+  * feat: `S3MockContainer` (Testcontainers) now supports the S3 Vectors API. Call `withVectors()` to activate the `vectors` Spring profile and connect via the new `vectorsHttpEndpoint` / `vectorsHttpsEndpoint` accessors (container ports `9092` / `9193`).
+  * feat: `S3MockContainer` (Testcontainers) adds `withDebug()` to activate the server's `debug` Spring profile and `withSpringProfiles(...)` to add arbitrary profiles. Spring profiles now compose (comma-separated, de-duplicated) instead of overwriting, so `withVectors()`, `withDebug()`, and `withSpringProfiles(...)` can be freely combined.
   * fix: `x-amz-delete-marker: true` is now correctly returned when deleting a versioned object that is itself a delete marker (previously returned `false`).
   * fix: `bucket-owner-full-control` canned ACL now correctly grants `FULL_CONTROL` to the bucket owner (was incorrectly granting `READ`, same as `bucket-owner-read`).
   * fix: `ListObjectVersions` no longer skips objects whose key contains characters requiring URL-encoding — a decoding mismatch caused their version metadata lookup to fail, returning an empty version list for those keys.
@@ -183,6 +185,7 @@ Version 5.x is JDK17 LTS bytecode compatible, with Docker and JUnit / direct Jav
   * fix: removed a log statement that echoed the raw, attacker-controlled `Content-MD5` request header, which could be used to forge log entries.
   * fix: dropped the unused `software.amazon.awssdk:s3` client SDK dependency from the server module (only its `checksums`, `regions`, and `utils` helper classes were ever used) — shrinks the Docker image by removing ~15 transitive jars (Netty/Apache HTTP clients, protocol/model classes) that were never exercised at runtime.
   * chore: Modernized the Docker image build. The hand-written multi-stage `Dockerfile` and `docker buildx` shell scripts (and the entire `docker` module) were replaced by the Spring Boot Maven plugin's `build-image` goal, producing an OCI image via Cloud Native Buildpacks using Spring Boot's default multi-architecture Paketo `noble-java-tiny` builder.
+  * chore: The `integration-tests` module now starts one S3Mock container per test class via Testcontainers instead of the fabric8 `docker-maven-plugin`, giving each test class full state isolation.
 * Version updates (deliverable dependencies)
   * Bump software.amazon.awssdk:bom from 2.46.11 to 2.46.17
   * Bump aws.sdk.kotlin:s3-jvm from 1.6.96 to 1.6.103

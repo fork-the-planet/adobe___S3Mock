@@ -112,6 +112,48 @@ make integration-test-class CLASS=BucketIT#shouldCreateBucket               # Sp
 
 > Integration tests require Docker to be running.
 
+Each test class runs against its own S3Mock container (started by Testcontainers). By default the
+container logs are not forwarded, keeping the build log readable. Two independent flags control
+container diagnostics (both default to off):
+
+- `-Ds3mock.log=true` — forward each container's output to the build log (INFO level).
+- `-Ds3mock.debug=true` — activate the server's `debug` Spring profile (debug-level logging).
+
+Combine them for debug-level output in the build log:
+
+```bash
+./mvnw -B verify -pl integration-tests -Ds3mock.log=true -Ds3mock.debug=true
+```
+
+The same flags apply to the `testsupport/testcontainers` module tests.
+
+### Running against a real S3 endpoint
+
+To run the integration tests against an external endpoint (e.g. the real AWS S3 API) directly from
+the IDE instead of a Testcontainer, set `it.s3mock.endpoint`. When it is set, S3 traffic uses the
+given endpoint directly, so **no Testcontainer is started for S3 operations**. Vector operations are
+fully external only when `it.s3mock.vectors.endpoint` is also set; otherwise vector helpers fall
+back to the container-backed `s3Mock.vectors*Endpoint` accessors and may still start the
+Testcontainer. Use the following overrides:
+
+| System property | Purpose | Default |
+|---|---|---|
+| `it.s3mock.endpoint` | S3 endpoint; also switches on real-backend mode | — (uses container) |
+| `it.s3mock.vectors.endpoint` | S3 Vectors endpoint | — (uses container) |
+| `it.s3mock.access.key.id` | AWS access key id | `foo` |
+| `it.s3mock.secret.access.key` | AWS secret access key | `bar` |
+| `it.s3mock.region` | AWS region | `us-east-1` |
+
+Tests annotated `@S3VerifiedFailure` are automatically disabled in this mode (see
+`RealS3BackendUsedCondition`). Example:
+
+```bash
+./mvnw -B verify -pl integration-tests \
+  -Dit.s3mock.endpoint=https://s3.eu-west-1.amazonaws.com \
+  -Dit.s3mock.region=eu-west-1 \
+  -Dit.s3mock.access.key.id=AKIA... -Dit.s3mock.secret.access.key=...
+```
+
 ## Troubleshooting
 
 - **Docker not running**: Run `docker info` — if it fails, Docker is not running; escalate to the human rather than debugging the test failure

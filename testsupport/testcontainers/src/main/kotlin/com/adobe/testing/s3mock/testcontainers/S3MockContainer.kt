@@ -27,6 +27,9 @@ import java.nio.file.Path
 class S3MockContainer(
   dockerImageName: DockerImageName,
 ) : GenericContainer<S3MockContainer>(dockerImageName) {
+  /** Accumulates Spring profiles so [withSpringProfiles]/[withVectors]/[withDebug] compose instead of overwriting. */
+  private val activeProfiles = linkedSetOf<String>()
+
   /**
    * Create a S3MockContainer.
    *
@@ -38,6 +41,8 @@ class S3MockContainer(
     dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME)
     addExposedPort(S3MOCK_DEFAULT_HTTP_PORT)
     addExposedPort(S3MOCK_DEFAULT_HTTPS_PORT)
+    addExposedPort(S3MOCK_DEFAULT_VECTORS_HTTP_PORT)
+    addExposedPort(S3MOCK_DEFAULT_VECTORS_HTTPS_PORT)
     waitingFor(
       Wait
         .forHttp("/favicon.ico")
@@ -48,6 +53,35 @@ class S3MockContainer(
   }
 
   fun withRegion(region: String): S3MockContainer = withEnv(PROP_REGION, region)
+
+  /**
+   * Add one or more Spring profiles to the container's `SPRING_PROFILES_ACTIVE` env var.
+   *
+   * Profiles compose: repeated calls (and helpers such as [withVectors]) accumulate into a single
+   * comma-separated value rather than overwriting each other, and duplicates are ignored.
+   */
+  fun withSpringProfiles(vararg profiles: String): S3MockContainer =
+    apply {
+      activeProfiles.addAll(profiles.map { it.trim() }.filter { it.isNotEmpty() })
+      withEnv(PROP_SPRING_PROFILES_ACTIVE, activeProfiles.joinToString(","))
+    }
+
+  /**
+   * Activate the `vectors` Spring profile so the container serves the S3 Vectors API on
+   * [vectorsHttpEndpoint] / [vectorsHttpsEndpoint]. Without this, the vectors ports are exposed
+   * but nothing listens on them.
+   *
+   * Composes with other profiles — see [withSpringProfiles].
+   */
+  fun withVectors(): S3MockContainer = withSpringProfiles(PROFILE_VECTORS)
+
+  /**
+   * Activate the server's `debug` Spring profile, which raises logging to debug level and (via the
+   * server's `spring.profiles.group.debug=actuator` grouping) also activates the `actuator` profile.
+   *
+   * Composes with other profiles — see [withSpringProfiles].
+   */
+  fun withDebug(): S3MockContainer = withSpringProfiles(PROFILE_DEBUG)
 
   fun withRetainFilesOnExit(retainFilesOnExit: Boolean): S3MockContainer = withEnv(PROP_RETAIN_FILES_ON_EXIT, retainFilesOnExit.toString())
 
@@ -86,11 +120,29 @@ class S3MockContainer(
   val httpsServerPort: Int
     get() = getMappedPort(S3MOCK_DEFAULT_HTTPS_PORT)
 
+  val vectorsHttpEndpoint: String
+    get() = "http://$host:$vectorsHttpServerPort"
+
+  val vectorsHttpsEndpoint: String
+    get() = "https://$host:$vectorsHttpsServerPort"
+
+  val vectorsHttpServerPort: Int
+    get() = getMappedPort(S3MOCK_DEFAULT_VECTORS_HTTP_PORT)
+
+  val vectorsHttpsServerPort: Int
+    get() = getMappedPort(S3MOCK_DEFAULT_VECTORS_HTTPS_PORT)
+
   companion object {
     const val IMAGE_NAME: String = "adobe/s3mock"
     private const val S3MOCK_DEFAULT_HTTP_PORT = 9090
     private const val S3MOCK_DEFAULT_HTTPS_PORT = 9191
+    private const val S3MOCK_DEFAULT_VECTORS_HTTP_PORT = 9092
+    private const val S3MOCK_DEFAULT_VECTORS_HTTPS_PORT = 9193
     private val DEFAULT_IMAGE_NAME: DockerImageName = DockerImageName.parse(IMAGE_NAME)
+
+    private const val PROP_SPRING_PROFILES_ACTIVE = "SPRING_PROFILES_ACTIVE"
+    private const val PROFILE_VECTORS = "vectors"
+    private const val PROFILE_DEBUG = "debug"
 
     /**
      * These properties are Spring Boot's standard env var relaxed binding of the same StoreProperties fields defined in the server module and must be kept in sync.

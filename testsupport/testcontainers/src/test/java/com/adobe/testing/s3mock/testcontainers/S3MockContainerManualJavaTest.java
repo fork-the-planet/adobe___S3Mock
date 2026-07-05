@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017-2025 Adobe.
+ *  Copyright 2017-2026 Adobe.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ public class S3MockContainerManualJavaTest extends S3MockContainerJavaTestBase {
 
   @BeforeEach
   void setUp() {
-    s3Mock = new S3MockContainer(S3MOCK_VERSION)
+    s3Mock = withDebugLogging(new S3MockContainer(S3MOCK_VERSION)
             .withValidKmsKeys(TEST_ENC_KEYREF)
-            .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES));
+            .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES)));
     s3Mock.start();
     // Must create S3Client after S3MockContainer is started, otherwise we can't request the random
     // locally mapped port for the endpoint

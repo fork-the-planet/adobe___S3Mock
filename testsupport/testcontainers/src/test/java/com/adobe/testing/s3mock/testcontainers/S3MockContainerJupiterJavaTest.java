@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017-2025 Adobe.
+ *  Copyright 2017-2026 Adobe.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ class S3MockContainerJupiterJavaTest extends S3MockContainerJavaTestBase {
   // Container will be started before each test method and stopped after
   @Container
   private final S3MockContainer s3Mock =
-      new S3MockContainer(S3MOCK_VERSION)
+      withDebugLogging(new S3MockContainer(S3MOCK_VERSION)
           .withValidKmsKeys(TEST_ENC_KEYREF)
-          .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES));
+          .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES)));
 
   @BeforeEach
   void setUp() {
