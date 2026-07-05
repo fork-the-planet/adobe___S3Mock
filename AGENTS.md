@@ -12,7 +12,7 @@ Lightweight S3 API mock server for local integration testing.
 ## Tech Stack
 - **Kotlin 2.3+** (language/API compatibility: 2.2; JVM target: 17; build toolchain: JDK 25 — per Spring Boot 4.x guidance), Spring Boot 4.0.x, Maven 3.9+
 - **Testing**: JUnit 5, Mockito, AssertJ, Testcontainers
-- **Container**: OCI image built by Spring Boot / Cloud Native Buildpacks (default multi-arch Paketo `noble-java-tiny` builder)
+- **Container**: OCI image built by Spring Boot / Cloud Native Buildpacks (BellSoft Alpaquita Linux `musl` builder, multi-arch)
 
 ## Structure
 

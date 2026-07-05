@@ -185,10 +185,26 @@
             Buildpacks env only needs to be defined once here.
           -->
           <image>
+            <!--
+              Use BellSoft's Alpaquita Linux (musl) Cloud Native Buildpacks builder instead of
+              Spring Boot's default Paketo noble-java-tiny builder. The musl builder produces a
+              smaller image and defaults to the bellsoft/buildpacks.hardened-run:musl run image
+              (immutable, proactively CVE-patched, SBOM included), which reduces the number of
+              CVEs reported by users' image scanners. Multi-arch (linux/amd64 + linux/arm64).
+            -->
+            <builder>bellsoft/buildpacks.builder:musl</builder>
             <env>
               <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
               <!-- Run jdeps + jlink to produce a minimal custom JRE (only required modules). -->
               <BP_JVM_JLINK_ENABLED>true</BP_JVM_JLINK_ENABLED>
+              <!--
+                Tighten the jlink output beyond the buildpack default: keep only the server VM
+                (drops the unused client + minimal libjvm.so variants, ~15MB), and use the JDK 21+
+                zip-9 module compression (shrinks lib/modules by ~10MB). musl only trims the OS
+                layer, not the JRE, so these flags are what actually reduce the JRE layer. ZGC and
+                C2 live in the server VM, so runtime behaviour is unchanged.
+              -->
+              <BP_JVM_JLINK_ARGS>--no-man-pages --no-header-files --strip-debug --compress=zip-9 --vm=server</BP_JVM_JLINK_ARGS>
               <!-- S3Mock does not use Spring Cloud Bindings; disable to remove the ~94MB layer. -->
               <BP_SPRING_CLOUD_BINDINGS_DISABLED>true</BP_SPRING_CLOUD_BINDINGS_DISABLED>
               <!--
@@ -227,8 +243,8 @@
 
   <profiles>
     <!--
-      Build a local, single-architecture OCI image via Cloud Native Buildpacks using Spring
-      Boot's default multi-arch Paketo noble-java-tiny builder (smallest supported base).
+      Build a local, single-architecture OCI image via Cloud Native Buildpacks using the
+      BellSoft Alpaquita Linux (musl) builder configured on the spring-boot-maven-plugin above.
       No imagePlatform is set, so Docker pulls the builder/run images matching the host
       architecture and the produced image matches the local Docker daemon automatically.
       Active by default; skipped with -DskipDocker. The integration-tests and
