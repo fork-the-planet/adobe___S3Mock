@@ -22,6 +22,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.util.Objects
 
 abstract class AbstractAwsInputStream protected constructor(
   source: InputStream,
@@ -42,6 +43,46 @@ abstract class AbstractAwsInputStream protected constructor(
   @Throws(IOException::class)
   override fun close() {
     source.close()
+  }
+
+  /**
+   * Bulk read that delegates the first byte to the single-byte [read] so that all chunk-boundary
+   * parsing (chunk headers, signatures, trailing checksum, end-of-stream detection) stays in one
+   * place, then copies the remaining payload bytes of the *current* chunk directly from [source].
+   *
+   * The copy never crosses a chunk boundary (it is bounded by [chunkLength]), so all delimiter,
+   * CRLF and checksum handling remains the responsibility of [read]. A single call therefore
+   * returns at most the bytes remaining in the current chunk, which is a valid short read.
+   */
+  @Throws(IOException::class)
+  override fun read(
+    b: ByteArray,
+    off: Int,
+    len: Int,
+  ): Int {
+    Objects.checkFromIndexSize(off, len, b.size)
+    if (len == 0) {
+      return 0
+    }
+
+    val first = read()
+    if (first < 0) {
+      return -1
+    }
+    b[off] = first.toByte()
+
+    var count = 1
+    while (count < len && chunkLength > 0L) {
+      val toRead = minOf((len - count).toLong(), chunkLength).toInt()
+      val read = source.read(b, off + count, toRead)
+      if (read < 0) {
+        break
+      }
+      count += read
+      chunkLength -= read
+      readDecodedLength += read
+    }
+    return count
   }
 
   /**
