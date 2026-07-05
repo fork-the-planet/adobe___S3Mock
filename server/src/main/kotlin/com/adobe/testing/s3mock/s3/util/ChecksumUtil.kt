@@ -28,6 +28,7 @@ import java.io.OutputStream
 import java.nio.file.Path
 import java.util.zip.CheckedInputStream
 import kotlin.io.path.inputStream
+import software.amazon.awssdk.checksums.spi.ChecksumAlgorithm as SdkChecksumAlgorithm
 
 /**
  * Utility class for AWS SDK checksum operations.
@@ -62,7 +63,7 @@ object ChecksumUtil {
    */
   fun checksumFor(
     path: Path,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): String {
     try {
       path.inputStream().use {
@@ -82,7 +83,7 @@ object ChecksumUtil {
    */
   private fun checksumFor(
     stream: InputStream,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): String = BinaryUtils.toBase64(checksum(stream, algorithm))
 
   /**
@@ -94,7 +95,7 @@ object ChecksumUtil {
    */
   private fun checksum(
     stream: InputStream,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): ByteArray {
     val sdkChecksum = sdkChecksumFor(algorithm)
     try {
@@ -107,7 +108,7 @@ object ChecksumUtil {
 
   private fun checksum(
     paths: List<Path>,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): ByteArray {
     val sdkChecksum = sdkChecksumFor(algorithm)
     val allChecksums = ByteArrayOutputStream()
@@ -133,7 +134,7 @@ object ChecksumUtil {
    */
   fun checksumMultipart(
     paths: List<Path>,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): String = "${BinaryUtils.toBase64(checksum(paths, algorithm))}-${paths.size}"
 
   /**
@@ -143,7 +144,7 @@ object ChecksumUtil {
    * `aws-crt` library; all other algorithms have a Java implementation in the SDK
    * `checksums` module and are delegated to [SdkChecksum.forAlgorithm].
    */
-  private fun sdkChecksumFor(algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm): SdkChecksum =
+  private fun sdkChecksumFor(algorithm: SdkChecksumAlgorithm): SdkChecksum =
     if (algorithm.algorithmId() == DefaultChecksumAlgorithm.CRC64NVME.algorithmId()) {
       Crc64Nvme()
     } else {
