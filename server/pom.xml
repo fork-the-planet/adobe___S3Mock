@@ -28,6 +28,12 @@
   <artifactId>s3mock</artifactId>
   <packaging>jar</packaging>
 
+  <name>S3Mock - Server</name>
+
+  <properties>
+    <start-class>com.adobe.testing.s3mock.S3MockApplication</start-class>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.jetbrains.kotlin</groupId>
@@ -156,12 +162,6 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <name>S3Mock - Server</name>
-
-  <properties>
-    <start-class>com.adobe.testing.s3mock.S3MockApplication</start-class>
-  </properties>
 
   <build>
     <plugins>
@@ -314,6 +314,43 @@
             </executions>
           </plugin>
           <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <!--
+                Merge the two per-architecture images into a single multi-arch manifest for the
+                final tags. Runs after both images have been published (package phase).
+              -->
+              <execution>
+                <id>merge-multi-arch-manifest</id>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>buildx</argument>
+                    <argument>imagetools</argument>
+                    <argument>create</argument>
+                    <!-- Version tag names: patch, minor, major, latest -->
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${project.version}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${parsedVersion.majorVersion}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:latest</argument>
+                    <!-- Sources: the per-architecture images published above -->
+                    <argument>${docker.image.name}:${project.version}-amd64</argument>
+                    <argument>${docker.image.name}:${project.version}-arm64</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-maven-plugin</artifactId>
             <configuration>
@@ -351,43 +388,6 @@
                     <imagePlatform>linux/arm64</imagePlatform>
                     <publish>true</publish>
                   </image>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>exec-maven-plugin</artifactId>
-            <executions>
-              <!--
-                Merge the two per-architecture images into a single multi-arch manifest for the
-                final tags. Runs after both images have been published (package phase).
-              -->
-              <execution>
-                <id>merge-multi-arch-manifest</id>
-                <goals>
-                  <goal>exec</goal>
-                </goals>
-                <phase>install</phase>
-                <configuration>
-                  <executable>docker</executable>
-                  <arguments>
-                    <argument>buildx</argument>
-                    <argument>imagetools</argument>
-                    <argument>create</argument>
-                    <!-- Version tag names: patch, minor, major, latest -->
-                    <argument>--tag</argument>
-                    <argument>${docker.image.name}:${project.version}</argument>
-                    <argument>--tag</argument>
-                    <argument>${docker.image.name}:${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</argument>
-                    <argument>--tag</argument>
-                    <argument>${docker.image.name}:${parsedVersion.majorVersion}</argument>
-                    <argument>--tag</argument>
-                    <argument>${docker.image.name}:latest</argument>
-                    <!-- Sources: the per-architecture images published above -->
-                    <argument>${docker.image.name}:${project.version}-amd64</argument>
-                    <argument>${docker.image.name}:${project.version}-arm64</argument>
-                  </arguments>
                 </configuration>
               </execution>
             </executions>
