@@ -55,7 +55,7 @@ abstract class AbstractAwsInputStream protected constructor(
   @Throws(IOException::class)
   protected fun readUntil(endSequence: ByteArray): ByteArray {
     byteBuffer.clear()
-    while (!endsWith(byteBuffer.asReadOnlyBuffer(), endSequence)) {
+    while (!endsWith(byteBuffer, endSequence)) {
       val c = source.read()
       if (c < 0) {
         return ByteArray(0)
@@ -90,7 +90,7 @@ abstract class AbstractAwsInputStream protected constructor(
   }
 
   protected fun setChunkLength(hexLengthBytes: ByteArray) {
-    chunkLength = String(hexLengthBytes, StandardCharsets.UTF_8).trim { it <= ' ' }.toLong(16)
+    chunkLength = String(hexLengthBytes, StandardCharsets.UTF_8).trim().toLong(16)
   }
 
   @Throws(IOException::class)
