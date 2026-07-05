@@ -15,10 +15,12 @@
  */
 package com.adobe.testing.s3mock.testcontainers
 
+import com.github.dockerjava.api.model.HostConfig
 import org.slf4j.LoggerFactory
 import org.testcontainers.containers.output.Slf4jLogConsumer
 
 private val CONTAINER_LOG = LoggerFactory.getLogger("com.adobe.testing.s3mock.testcontainers.S3Mock")
+private const val TEST_CONTAINER_MEMORY_BYTES = 256L * 1024 * 1024
 
 /** `-Ds3mock.log=true` forwards the container output to the build log (default: off). */
 private val LOG_ENABLED: Boolean = System.getProperty("s3mock.log", "false").toBoolean()
@@ -27,8 +29,9 @@ private val LOG_ENABLED: Boolean = System.getProperty("s3mock.log", "false").toB
 private val DEBUG_ENABLED: Boolean = System.getProperty("s3mock.debug", "false").toBoolean()
 
 /**
- * Applies the two independent, system-property-driven diagnostics flags to a container. Both
- * default to off. Must be called before `start()`:
+ * Applies the standard testsupport Testcontainers settings to a container. Must be called before
+ * `start()`:
+ *  - caps the container at 256 MiB, matching [com.adobe.testing.s3mock.its.S3TestBase]
  *  - `-Ds3mock.log=true` forwards the container's output to the build log.
  *  - `-Ds3mock.debug=true` activates the server's `debug` profile (debug-level logging).
  *
@@ -37,6 +40,11 @@ private val DEBUG_ENABLED: Boolean = System.getProperty("s3mock.debug", "false")
  */
 internal fun S3MockContainer.withDebugLogging(): S3MockContainer =
   apply {
+    withCreateContainerCmdModifier { cmd ->
+      val hostConfig = cmd.hostConfig ?: HostConfig.newHostConfig()
+      hostConfig.withMemory(TEST_CONTAINER_MEMORY_BYTES)
+      cmd.withHostConfig(hostConfig)
+    }
     if (DEBUG_ENABLED) {
       withDebug()
     }

@@ -850,12 +850,12 @@ internal abstract class S3TestBase {
     const val SERVER_REGION = "eu-west-1"
 
     /**
-     * Memory cap for each S3Mock container. Buildpack images run the Paketo JVM memory calculator,
-     * which reserves fixed regions (code cache ~128M, metaspace ~85M, direct memory, thread stacks)
-     * before any heap. With the image's footprint tuning those fixed regions total ~253M, so the
-     * container needs clearly more than that to leave usable heap; 512 MiB yields ~264M heap.
+     * Memory cap for each S3Mock container. Buildpack images run the Paketo/BellSoft JVM
+     * memory calculator at launch; our `BPL_JVM_THREAD_COUNT=50`, `-Xss512k`, and
+     * `-XX:ReservedCodeCacheSize=32M` tuning are inputs to that calculator.  256 MiB now leaves a computed heap
+     * of ~108 MiB and starts reliably.
      */
-    const val CONTAINER_MEMORY_BYTES = 512L * 1024 * 1024
+    const val CONTAINER_MEMORY_BYTES = 256L * 1024 * 1024
 
     // -Ds3mock.log=true forwards the container output to the build log (default: off).
     val LOG_ENABLED: Boolean = System.getProperty("s3mock.log", "false").toBoolean()

@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static software.amazon.awssdk.http.SdkHttpConfigurationOption.TRUST_ALL_CERTIFICATES;
 
 import com.adobe.testing.s3mock.s3.util.DigestUtil;
+import com.github.dockerjava.api.model.HostConfig;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -55,6 +56,7 @@ abstract class S3MockContainerJavaTestBase {
   // we set the system property when running in maven, use "latest" for unit tests in the IDE
   protected static final String S3MOCK_VERSION = System.getProperty("s3mock.version", "latest");
   protected static final Collection<String> INITIAL_BUCKET_NAMES = asList("bucket-a", "bucket-b");
+  protected static final long TEST_CONTAINER_MEMORY_BYTES = 256L * 1024 * 1024;
   // -Ds3mock.log=true forwards the container output to the build log (default: off).
   protected static final boolean LOG_ENABLED = Boolean.getBoolean("s3mock.log");
   // -Ds3mock.debug=true activates the server's "debug" Spring profile (default: off).
@@ -139,11 +141,20 @@ abstract class S3MockContainerJavaTestBase {
   }
 
   /**
-   * Applies the two independent, system-property-driven diagnostics flags. Both default to off and
-   * must be applied before {@code start()}: {@code -Ds3mock.log=true} forwards the container output
-   * to the build log, {@code -Ds3mock.debug=true} activates the server's {@code debug} profile.
+   * Applies the standard testsupport Testcontainers settings. Must be called before
+   * {@code start()}: it caps the container at 256 MiB (matching the integration-test
+   * {@code S3TestBase}), {@code -Ds3mock.log=true} forwards the container output to the build log,
+   * and {@code -Ds3mock.debug=true} activates the server's {@code debug} profile.
    */
   protected static S3MockContainer withDebugLogging(S3MockContainer container) {
+    container.withCreateContainerCmdModifier(cmd -> {
+      var hostConfig = cmd.getHostConfig();
+      if (hostConfig == null) {
+        hostConfig = HostConfig.newHostConfig();
+      }
+      hostConfig.withMemory(TEST_CONTAINER_MEMORY_BYTES);
+      cmd.withHostConfig(hostConfig);
+    });
     if (DEBUG) {
       container.withDebug();
     }

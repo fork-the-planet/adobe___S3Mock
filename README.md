@@ -594,7 +594,7 @@ S3Mock is designed for testing, not production workloads:
 
 - **Disk**: All objects are stored on the local filesystem — disk usage grows proportionally with stored data
 - **Memory**: Consumption scales with concurrent multipart uploads and in-flight requests
-- **CI environments**: Consider setting Docker resource limits (e.g., `--memory=512m`) to avoid contention with other services
+- **CI environments**: Consider setting Docker resource limits (e.g., `--memory=256m`) to avoid contention with other services
 - **Cleanup**: By default, S3Mock deletes all stored data on shutdown. Set `COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT=true` only when you need data to survive restarts
 
 ## Architecture & Development

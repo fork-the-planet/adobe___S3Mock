@@ -218,8 +218,7 @@
               -->
               <BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>50</BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>
               <!--
-                Preserve the JVM flags previously set in the Dockerfile ENTRYPOINT, plus footprint
-                tuning: a smaller reserved code cache (vs the 240M default) and a 512k thread stack.
+                Footprint tuning: a smaller reserved code cache (vs the 240M default) and a 512k thread stack.
                 The memory calculator honors these user-provided values instead of overriding them.
               -->
               <BPE_APPEND_JAVA_TOOL_OPTIONS>-XX:+UseZGC -Djava.security.egd=file:/dev/./urandom -XX:ReservedCodeCacheSize=32M -Xss512k</BPE_APPEND_JAVA_TOOL_OPTIONS>
