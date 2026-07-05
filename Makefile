@@ -79,6 +79,10 @@ integration-tests: ## Integration tests against a live Docker container
 integration-test-class: ## Run one integration test: make integration-test-class CLASS=BucketIT
 	./mvnw -B -V -Dstyle.color=always verify -pl integration-tests -Dit.test=$(CLASS)
 
+.PHONY: coverage
+coverage: ## Unit test coverage report (server/target/site/jacoco/index.html)
+	./mvnw -B -V -Dstyle.color=always -Pcoverage test jacoco:report -pl server
+
 # ─── Development ──────────────────────────────────────────────────────────────
 
 .PHONY: run
