@@ -18,11 +18,26 @@ package com.adobe.testing.s3mock.s3.util
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo
+import org.junit.jupiter.api.io.TempDir
 import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm
 import software.amazon.awssdk.utils.BinaryUtils
+import java.nio.file.Path
 import java.security.MessageDigest
+import kotlin.io.path.writeBytes
 
 internal class ChecksumUtilTest {
+  @Test
+  fun testCrc64Nvme(
+    @TempDir tempDir: Path,
+  ) {
+    val file = tempDir.resolve("crc64nvme.bin")
+    file.writeBytes("123456789".toByteArray(Charsets.UTF_8))
+
+    // Standard CRC-64/NVME check value for "123456789", base64-encoded big-endian.
+    assertThat(ChecksumUtil.checksumFor(file, DefaultChecksumAlgorithm.CRC64NVME))
+      .isEqualTo("rosUhgp5mIg=")
+  }
+
   @Test
   fun testChecksumOfMultipleFiles(testInfo: TestInfo) {
     val sha256 = MessageDigest.getInstance("SHA-256")

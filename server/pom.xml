@@ -55,12 +55,9 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
-    <!-- Pulls in the native aws-crt library, which provides the only available CRC64NVME
-         checksum implementation; the "checksums" module has no pure-Java fallback for it. -->
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>aws-crt-client</artifactId>
-    </dependency>
+    <!-- Provides the Java implementations of CRC32/CRC32C/SHA checksums. CRC64NVME has no Java
+         fallback here (it requires the native aws-crt library), so S3Mock supplies its own
+         pure-JVM Crc64Nvme implementation instead of pulling in the ~20MB aws-crt dependency. -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>checksums</artifactId>
@@ -148,6 +145,14 @@
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>auth</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Test-only: the AWS SDK chunk-encoder used to build CRC64NVME test fixtures requires the
+         native aws-crt library. Not needed at runtime - S3Mock computes CRC64NVME via its own
+         pure-JVM Crc64Nvme - so this stays test-scoped and out of the packaged fat jar. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>aws-crt-client</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
