@@ -20,12 +20,12 @@ import com.adobe.testing.s3mock.s3.S3Exception
 import com.adobe.testing.s3mock.s3.dto.ChecksumAlgorithm
 import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm
 import software.amazon.awssdk.checksums.SdkChecksum
-import software.amazon.awssdk.utils.BinaryUtils
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Path
+import java.util.Base64
 import java.util.zip.CheckedInputStream
 import kotlin.io.path.inputStream
 import software.amazon.awssdk.checksums.spi.ChecksumAlgorithm as SdkChecksumAlgorithm
@@ -84,7 +84,7 @@ object ChecksumUtil {
   private fun checksumFor(
     stream: InputStream,
     algorithm: SdkChecksumAlgorithm,
-  ): String = BinaryUtils.toBase64(checksum(stream, algorithm))
+  ): String = Base64.getEncoder().encodeToString(checksum(stream, algorithm))
 
   /**
    * Calculate a checksum for the given inputstream and algorithm.
@@ -135,7 +135,7 @@ object ChecksumUtil {
   fun checksumMultipart(
     paths: List<Path>,
     algorithm: SdkChecksumAlgorithm,
-  ): String = "${BinaryUtils.toBase64(checksum(paths, algorithm))}-${paths.size}"
+  ): String = "${Base64.getEncoder().encodeToString(checksum(paths, algorithm))}-${paths.size}"
 
   /**
    * Returns the [SdkChecksum] for the given algorithm.
