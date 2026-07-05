@@ -16,6 +16,7 @@
 
 package com.adobe.testing.s3mock.s3.util
 
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -173,14 +174,17 @@ object DigestUtil {
   private fun md5(
     salt: String?,
     paths: List<Path>,
-  ): ByteArray =
-    paths.fold(ByteArray(0)) { acc, path ->
+  ): ByteArray {
+    val allDigests = ByteArrayOutputStream()
+    for (path in paths) {
       try {
-        acc + path.inputStream().use { md5(salt, it) }
+        path.inputStream().use { allDigests.write(md5(salt, it)) }
       } catch (e: IOException) {
         throw IllegalStateException("Could not read from path $path", e)
       }
     }
+    return allDigests.toByteArray()
+  }
 
   private fun messageDigest(salt: String?): MessageDigest {
     val md = MessageDigest.getInstance("MD5")
