@@ -47,7 +47,6 @@ import java.io.InputStream
 import java.io.SequenceInputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -229,7 +228,7 @@ open class MultipartStore(
     val partFolder = getPartsFolder(bucket, uploadId)
     val partsPaths: List<Path> =
       parts.map { part ->
-        Paths.get(partFolder.toString(), "${part.partNumber}$PART_SUFFIX")
+        partFolder.resolve("${part.partNumber}$PART_SUFFIX")
       }
     val tempFile = Files.createTempFile("completeMultipartUpload", "")
     try {
@@ -423,7 +422,7 @@ open class MultipartStore(
     uploadId: UUID,
   ): Boolean = runCatching { getPartsFolder(bucket, uploadId).createDirectories() }.isSuccess
 
-  private fun getMultipartsFolder(bucket: BucketMetadata): Path = Paths.get(bucket.path.toString(), MULTIPARTS_FOLDER)
+  private fun getMultipartsFolder(bucket: BucketMetadata): Path = bucket.path.resolve(MULTIPARTS_FOLDER)
 
   private fun getPartPath(
     bucket: BucketMetadata,

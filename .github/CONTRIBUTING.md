@@ -126,7 +126,7 @@ Ensure your code has coverage from at least one of these test types.
 - Modifying `.github/` workflows
 - Changing `pom.xml` dependency versions
 - Deleting files (check with the human first)
-- Any change that touches the Docker image, Dockerfile, or CI configuration
+- Any change that touches the Docker image build or CI configuration
 
 ### Escalation checklist
 

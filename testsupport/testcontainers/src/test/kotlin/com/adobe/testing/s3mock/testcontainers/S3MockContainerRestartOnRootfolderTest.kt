@@ -17,7 +17,6 @@ package com.adobe.testing.s3mock.testcontainers
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
-import org.testcontainers.containers.output.Slf4jLogConsumer
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -28,15 +27,13 @@ internal class S3MockContainerRestartOnRootfolderTest : S3MockContainerTestBase(
   @BeforeEach
   fun setUp() {
     s3Mock =
-      S3MockContainer(S3MOCK_VERSION).apply {
-        withValidKmsKeys(TEST_ENC_KEYREF)
-        withRetainFilesOnExit(true)
-        withEnv("debug", "true")
-        withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
-        withVolumeAsRoot(tempDir.absolutePath)
-        start()
-        followOutput(Slf4jLogConsumer(LOG))
-      }
+      S3MockContainer(S3MOCK_VERSION)
+        .withValidKmsKeys(TEST_ENC_KEYREF)
+        .withRetainFilesOnExit(true)
+        .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
+        .withVolumeAsRoot(tempDir.absolutePath)
+        .withDebugLogging()
+        .apply { start() }
 
     val endpoint = s3Mock.httpsEndpoint
     s3Client = createS3ClientV2(endpoint)

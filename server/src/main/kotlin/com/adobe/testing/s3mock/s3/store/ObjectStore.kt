@@ -39,7 +39,6 @@ import org.springframework.http.MediaType
 import tools.jackson.databind.ObjectMapper
 import java.io.IOException
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -426,7 +425,7 @@ open class ObjectStore(
   private fun getObjectFolderPath(
     bucket: BucketMetadata,
     id: UUID,
-  ): Path = Paths.get(bucket.path.toString(), id.toString())
+  ): Path = bucket.path.resolve(id.toString())
 
   private fun getMetaFilePath(
     bucket: BucketMetadata,

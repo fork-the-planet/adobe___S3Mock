@@ -157,6 +157,8 @@ internal class BucketControllerTest : BaseControllerTest() {
 
 ### Common Anti-Patterns
 
+The first row is enforced by the `noStandardMockitoUnitTests` ArchUnit rule (`make test`) for Spring-managed components; see [INVARIANTS.md](../INVARIANTS.md).
+
 | Anti-Pattern | Refactor To |
 |---|---|
 | `@ExtendWith(MockitoExtension::class)` + `@Mock` + `@InjectMocks` | `@SpringBootTest` + `@MockitoBean` + `@Autowired` |

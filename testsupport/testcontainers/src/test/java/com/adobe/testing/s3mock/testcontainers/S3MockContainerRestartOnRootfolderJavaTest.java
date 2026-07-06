@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017-2025 Adobe.
+ *  Copyright 2017-2026 Adobe.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
 
 public class S3MockContainerRestartOnRootfolderJavaTest extends S3MockContainerJavaTestBase {
 
@@ -39,15 +38,12 @@ public class S3MockContainerRestartOnRootfolderJavaTest extends S3MockContainerJ
 
   @BeforeEach
   void setUp() {
-    s3Mock = new S3MockContainer(S3MOCK_VERSION)
+    s3Mock = withDebugLogging(new S3MockContainer(S3MOCK_VERSION)
         .withValidKmsKeys(TEST_ENC_KEYREF)
         .withRetainFilesOnExit(true)
-        .withEnv("debug", "true")
-        .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES));
+        .withInitialBuckets(String.join(",", INITIAL_BUCKET_NAMES)));
     s3Mock.withVolumeAsRoot(tempDir.getAbsolutePath());
     s3Mock.start();
-    var logConsumer = new Slf4jLogConsumer(LOG);
-    s3Mock.followOutput(logConsumer);
     // Must create S3Client after S3MockContainer is started, otherwise we can't request the random
     // locally mapped port for the endpoint
     var endpoint = s3Mock.getHttpsEndpoint();

@@ -18,15 +18,17 @@ package com.adobe.testing.s3mock.s3.util
 
 import com.adobe.testing.s3mock.s3.S3Exception
 import com.adobe.testing.s3mock.s3.dto.ChecksumAlgorithm
+import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm
 import software.amazon.awssdk.checksums.SdkChecksum
-import software.amazon.awssdk.utils.BinaryUtils
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Path
+import java.util.Base64
 import java.util.zip.CheckedInputStream
 import kotlin.io.path.inputStream
+import software.amazon.awssdk.checksums.spi.ChecksumAlgorithm as SdkChecksumAlgorithm
 
 /**
  * Utility class for AWS SDK checksum operations.
@@ -61,7 +63,7 @@ object ChecksumUtil {
    */
   fun checksumFor(
     path: Path,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): String {
     try {
       path.inputStream().use {
@@ -81,8 +83,8 @@ object ChecksumUtil {
    */
   private fun checksumFor(
     stream: InputStream,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
-  ): String = BinaryUtils.toBase64(checksum(stream, algorithm))
+    algorithm: SdkChecksumAlgorithm,
+  ): String = Base64.getEncoder().encodeToString(checksum(stream, algorithm))
 
   /**
    * Calculate a checksum for the given inputstream and algorithm.
@@ -93,9 +95,9 @@ object ChecksumUtil {
    */
   private fun checksum(
     stream: InputStream,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): ByteArray {
-    val sdkChecksum = SdkChecksum.forAlgorithm(algorithm)
+    val sdkChecksum = sdkChecksumFor(algorithm)
     try {
       CheckedInputStream(stream, sdkChecksum).copyTo(OutputStream.nullOutputStream())
       return sdkChecksum.checksumBytes
@@ -106,9 +108,9 @@ object ChecksumUtil {
 
   private fun checksum(
     paths: List<Path>,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
+    algorithm: SdkChecksumAlgorithm,
   ): ByteArray {
-    val sdkChecksum = SdkChecksum.forAlgorithm(algorithm)
+    val sdkChecksum = sdkChecksumFor(algorithm)
     val allChecksums = ByteArrayOutputStream()
     for (path in paths) {
       try {
@@ -132,6 +134,20 @@ object ChecksumUtil {
    */
   fun checksumMultipart(
     paths: List<Path>,
-    algorithm: software.amazon.awssdk.checksums.spi.ChecksumAlgorithm,
-  ): String = "${BinaryUtils.toBase64(checksum(paths, algorithm))}-${paths.size}"
+    algorithm: SdkChecksumAlgorithm,
+  ): String = "${Base64.getEncoder().encodeToString(checksum(paths, algorithm))}-${paths.size}"
+
+  /**
+   * Returns the [SdkChecksum] for the given algorithm.
+   *
+   * CRC64NVME is served by our own pure-JVM [Crc64Nvme] so we don't need the native
+   * `aws-crt` library; all other algorithms have a Java implementation in the SDK
+   * `checksums` module and are delegated to [SdkChecksum.forAlgorithm].
+   */
+  private fun sdkChecksumFor(algorithm: SdkChecksumAlgorithm): SdkChecksum =
+    if (algorithm.algorithmId() == DefaultChecksumAlgorithm.CRC64NVME.algorithmId()) {
+      Crc64Nvme()
+    } else {
+      SdkChecksum.forAlgorithm(algorithm)
+    }
 }

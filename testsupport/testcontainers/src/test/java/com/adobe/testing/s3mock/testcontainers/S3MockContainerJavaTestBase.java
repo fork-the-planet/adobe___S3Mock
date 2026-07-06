@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static software.amazon.awssdk.http.SdkHttpConfigurationOption.TRUST_ALL_CERTIFICATES;
 
 import com.adobe.testing.s3mock.s3.util.DigestUtil;
+import com.github.dockerjava.api.model.HostConfig;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -54,6 +56,11 @@ abstract class S3MockContainerJavaTestBase {
   // we set the system property when running in maven, use "latest" for unit tests in the IDE
   protected static final String S3MOCK_VERSION = System.getProperty("s3mock.version", "latest");
   protected static final Collection<String> INITIAL_BUCKET_NAMES = asList("bucket-a", "bucket-b");
+  protected static final long TEST_CONTAINER_MEMORY_BYTES = 256L * 1024 * 1024;
+  // -Ds3mock.log=true forwards the container output to the build log (default: off).
+  protected static final boolean LOG_ENABLED = Boolean.getBoolean("s3mock.log");
+  // -Ds3mock.debug=true activates the server's "debug" Spring profile (default: off).
+  protected static final boolean DEBUG = Boolean.getBoolean("s3mock.debug");
   protected static final String TEST_ENC_KEYREF =
       "arn:aws:kms:us-east-1:1234567890:key/valid-test-key-ref";
   protected static final String UPLOAD_FILE_NAME = "src/test/resources/sampleFile.txt";
@@ -131,6 +138,30 @@ abstract class S3MockContainerJavaTestBase {
         .httpClient(UrlConnectionHttpClient.builder().buildWithDefaults(
             AttributeMap.builder().put(TRUST_ALL_CERTIFICATES, Boolean.TRUE).build()))
         .build();
+  }
+
+  /**
+   * Applies the standard testsupport Testcontainers settings. Must be called before
+   * {@code start()}: it caps the container at 256 MiB (matching the integration-test
+   * {@code S3TestBase}), {@code -Ds3mock.log=true} forwards the container output to the build log,
+   * and {@code -Ds3mock.debug=true} activates the server's {@code debug} profile.
+   */
+  protected static S3MockContainer withDebugLogging(S3MockContainer container) {
+    container.withCreateContainerCmdModifier(cmd -> {
+      var hostConfig = cmd.getHostConfig();
+      if (hostConfig == null) {
+        hostConfig = HostConfig.newHostConfig();
+      }
+      hostConfig.withMemory(TEST_CONTAINER_MEMORY_BYTES);
+      cmd.withHostConfig(hostConfig);
+    });
+    if (DEBUG) {
+      container.withDebug();
+    }
+    if (LOG_ENABLED) {
+      container.withLogConsumer(new Slf4jLogConsumer(LOG));
+    }
+    return container;
   }
 
   protected String bucketName(TestInfo testInfo) {

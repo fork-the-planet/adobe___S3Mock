@@ -25,7 +25,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import software.amazon.awssdk.regions.Region
 import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.io.IOException
@@ -57,11 +56,11 @@ class StoreConfiguration {
     rootFolder: File,
     bucketNames: List<String>,
     objectMapper: ObjectMapper,
-    @Value($$"${com.adobe.testing.s3mock.store.region}") region: Region?,
+    @Value($$"${com.adobe.testing.s3mock.store.region}") region: String?,
   ): BucketStore {
     val mockRegion = region ?: properties.region
 
-    val bucketStore = BucketStore(rootFolder, S3_OBJECT_DATE_FORMAT, mockRegion.id(), objectMapper)
+    val bucketStore = BucketStore(rootFolder, S3_OBJECT_DATE_FORMAT, mockRegion, objectMapper)
     // load existing buckets first
     bucketStore.loadBuckets(bucketNames)
 
@@ -80,7 +79,7 @@ class StoreConfiguration {
           name!!,
           false,
           ObjectOwnership.BUCKET_OWNER_ENFORCED,
-          mockRegion.id(),
+          mockRegion,
           null,
           null,
         )

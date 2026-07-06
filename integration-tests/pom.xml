@@ -41,17 +41,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <!-- only enforcing build order - all transitive dependencies are removed -->
       <groupId>com.adobe.testing</groupId>
-      <artifactId>s3mock-docker</artifactId>
-      <type>pom</type>
+      <artifactId>s3mock-testcontainers</artifactId>
       <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.assertj</groupId>
@@ -115,6 +107,11 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>apache-client</artifactId>
       <scope>test</scope>
@@ -167,47 +164,6 @@
   </dependencies>
 
   <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>io.fabric8</groupId>
-          <artifactId>docker-maven-plugin</artifactId>
-          <configuration combine.self="override">
-            <verbose>true</verbose>
-            <images>
-              <image>
-                <alias>s3mock</alias>
-                <name>${docker.image.name}</name>
-                <run>
-                  <log>
-                    <enabled>true</enabled>
-                  </log>
-                  <ports>
-                    <port>+docker.host.ip:it.s3mock.port_http:9090</port>
-                    <port>+docker.host.ip:it.s3mock.port_https:9191</port>
-                    <port>+docker.host.ip:it.s3mock.vectors.port_http:9092</port>
-                    <port>+docker.host.ip:it.s3mock.vectors.port_https:9193</port>
-                  </ports>
-                  <wait>
-                    <http>
-                      <url>http://${docker.host.ip}:${it.s3mock.port_http}/favicon.ico</url>
-                    </http>
-                    <time>30000</time>
-                  </wait>
-                  <env>
-                    <COM_ADOBE_TESTING_S3MOCK_STORE_VALID_KMS_KEYS>arn:aws:kms:us-east-1:1234567890:key/valid-test-key-id</COM_ADOBE_TESTING_S3MOCK_STORE_VALID_KMS_KEYS>
-                    <COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS>bucket-a, bucket-b</COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS>
-                    <COM_ADOBE_TESTING_S3MOCK_STORE_REGION>eu-west-1</COM_ADOBE_TESTING_S3MOCK_STORE_REGION>
-                    <SPRING_PROFILES_ACTIVE>vectors</SPRING_PROFILES_ACTIVE>
-                  </env>
-                  <memory>256000000</memory>
-                </run>
-              </image>
-            </images>
-          </configuration>
-        </plugin>
-      </plugins>
-    </pluginManagement>
     <plugins>
       <plugin>
         <groupId>com.github.gantsign.maven</groupId>
@@ -234,8 +190,13 @@
   </build>
 
   <profiles>
+    <!--
+      Integration tests run each *IT against its own S3Mock Docker container, started in-process by
+      Testcontainers (see S3TestBase). This profile only binds the failsafe plugin so the tests are
+      skipped under -DskipDocker, where the server module does not build the image the tests consume.
+    -->
     <profile>
-      <id>start-docker-for-integration-tests</id>
+      <id>run-integration-tests</id>
       <activation>
         <!-- If running with -DskipDocker, this profile won't be active. -->
         <property>
@@ -244,31 +205,6 @@
       </activation>
       <build>
         <plugins>
-          <plugin>
-            <groupId>io.fabric8</groupId>
-            <artifactId>docker-maven-plugin</artifactId>
-            <configuration>
-              <!-- Even if this profile is active, we do not start the Docker container if the
-               tests are skipped, since it is only used for the integration tests. -->
-              <skip>${skipTests}</skip>
-            </configuration>
-            <executions>
-              <execution>
-                <id>start-docker-image</id>
-                <goals>
-                  <goal>start</goal>
-                </goals>
-                <phase>pre-integration-test</phase>
-              </execution>
-              <execution>
-                <id>stop-docker-image</id>
-                <goals>
-                  <goal>stop</goal>
-                </goals>
-                <phase>post-integration-test</phase>
-              </execution>
-            </executions>
-          </plugin>
           <plugin>
             <artifactId>maven-failsafe-plugin</artifactId>
             <executions>
@@ -279,11 +215,7 @@
                 </goals>
                 <configuration>
                   <systemPropertyVariables>
-                    <it.s3mock.host>${docker.host.ip}</it.s3mock.host>
-                    <it.s3mock.port_https>${it.s3mock.port_https}</it.s3mock.port_https>
-                    <it.s3mock.port_http>${it.s3mock.port_http}</it.s3mock.port_http>
-                    <it.s3mock.vectors.port_https>${it.s3mock.vectors.port_https}</it.s3mock.vectors.port_https>
-                    <it.s3mock.vectors.port_http>${it.s3mock.vectors.port_http}</it.s3mock.vectors.port_http>
+                    <it.s3mock.image>${docker.image.name}:${project.version}</it.s3mock.image>
                   </systemPropertyVariables>
                 </configuration>
               </execution>

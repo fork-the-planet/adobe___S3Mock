@@ -565,8 +565,7 @@ class ObjectController(
       bytesToRead: Long,
     ) {
       s3ObjectMetadata.dataPath.inputStream().use { fis ->
-        val skipped = fis.skip(startOffset)
-        require(skipped == startOffset) { "Could not skip exact byte range" }
+        fis.skipNBytes(startOffset)
         BoundedInputStream(fis, bytesToRead).use { bis ->
           bis.transferTo(outputStream)
         }

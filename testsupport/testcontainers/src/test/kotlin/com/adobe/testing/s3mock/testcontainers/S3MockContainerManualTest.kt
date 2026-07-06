@@ -15,30 +15,36 @@
  */
 package com.adobe.testing.s3mock.testcontainers
 
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.TestInstance
 
 /**
  * This tests / shows how to manually start and stop the S3MockContainer.
  * Tests are inherited from base class.
+ *
+ * The container is started once in [setUp] and stopped in [tearDown], so the single instance is
+ * reused across all test methods in this class. [TestInstance.Lifecycle.PER_CLASS] lets the
+ * `@BeforeAll` / `@AfterAll` methods be non-static and share instance state.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class S3MockContainerManualTest : S3MockContainerTestBase() {
   private lateinit var s3Mock: S3MockContainer
 
-  @BeforeEach
+  @BeforeAll
   fun setUp() {
     s3Mock =
-      S3MockContainer(S3MOCK_VERSION).apply {
-        withValidKmsKeys(TEST_ENC_KEYREF)
-        withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
-        start()
-      }
+      S3MockContainer(S3MOCK_VERSION)
+        .withValidKmsKeys(TEST_ENC_KEYREF)
+        .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
+        .withDebugLogging()
+        .apply { start() }
     // Must create S3Client after S3MockContainer is started, otherwise we can't request the random
     // locally mapped port for the endpoint
     s3Client = createS3ClientV2(s3Mock.httpsEndpoint)
   }
 
-  @AfterEach
+  @AfterAll
   fun tearDown() {
     if (this::s3Mock.isInitialized) {
       s3Mock.stop()

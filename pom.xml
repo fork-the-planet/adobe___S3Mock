@@ -51,7 +51,6 @@
   </developers>
 
   <modules>
-    <module>docker</module>
     <module>integration-tests</module>
     <module>server</module>
     <module>testsupport</module>
@@ -76,8 +75,6 @@
     <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
     <checkstyle.version>13.7.0</checkstyle.version>
 
-    <docker-builder.image.name>s3mock-buildx</docker-builder.image.name>
-    <docker-maven-plugin.version>0.48.1</docker-maven-plugin.version>
     <docker.image.name>adobe/s3mock</docker.image.name>
     <dokka-maven-plugin.version>2.2.0</dokka-maven-plugin.version>
     <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
@@ -167,13 +164,12 @@
         <version>${project.version}</version>
         <classifier>exec</classifier>
       </dependency>
-
       <dependency>
         <groupId>com.adobe.testing</groupId>
-        <artifactId>s3mock-docker</artifactId>
+        <artifactId>s3mock-testcontainers</artifactId>
         <version>${project.version}</version>
-        <type>pom</type>
       </dependency>
+
       <dependency>
         <groupId>com.adobe.testing</groupId>
         <artifactId>s3mock-testsupport-common</artifactId>
@@ -321,14 +317,6 @@
           </executions>
         </plugin>
         <plugin>
-          <groupId>io.fabric8</groupId>
-          <artifactId>docker-maven-plugin</artifactId>
-          <version>${docker-maven-plugin.version}</version>
-          <configuration>
-            <skip>true</skip>
-          </configuration>
-        </plugin>
-        <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-checkstyle-plugin</artifactId>
           <version>${maven-checkstyle-plugin.version}</version>
@@ -430,10 +418,6 @@
           <configuration>
             <failIfNoTests>true</failIfNoTests>
             <runOrder>random</runOrder>
-            <parallel>methods</parallel>
-            <threadCount>4</threadCount>
-            <useUnlimitedThreads>false</useUnlimitedThreads>
-            <perCoreThreadCount>true</perCoreThreadCount>
           </configuration>
         </plugin>
         <plugin>
@@ -519,10 +503,6 @@
           <configuration>
             <failIfNoTests>true</failIfNoTests>
             <runOrder>random</runOrder>
-            <parallel>methods</parallel>
-            <threadCount>4</threadCount>
-            <useUnlimitedThreads>false</useUnlimitedThreads>
-            <perCoreThreadCount>true</perCoreThreadCount>
           </configuration>
         </plugin>
         <plugin>
@@ -645,10 +625,6 @@
         <artifactId>maven-source-plugin</artifactId>
       </plugin>
       <plugin>
-        <groupId>org.jetbrains.dokka</groupId>
-        <artifactId>dokka-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
         <groupId>org.sonatype.central</groupId>
         <artifactId>central-publishing-maven-plugin</artifactId>
       </plugin>
@@ -666,6 +642,15 @@
         <plugins>
           <plugin>
             <artifactId>maven-gpg-plugin</artifactId>
+          </plugin>
+          <!--
+            Dokka generates the KDoc/Javadoc jar required for publishing. It is release-only because
+            it is only needed for deployment and its plugin loader logs hundreds of lines per module,
+            which would otherwise flood every local and CI build.
+          -->
+          <plugin>
+            <groupId>org.jetbrains.dokka</groupId>
+            <artifactId>dokka-maven-plugin</artifactId>
           </plugin>
         </plugins>
       </build>

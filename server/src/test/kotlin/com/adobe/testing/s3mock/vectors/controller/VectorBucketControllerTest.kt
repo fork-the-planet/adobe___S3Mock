@@ -16,121 +16,141 @@
 package com.adobe.testing.s3mock.vectors.controller
 
 import com.adobe.testing.s3mock.vectors.S3VectorsException
-import com.adobe.testing.s3mock.vectors.dto.CreateVectorBucketRequest
 import com.adobe.testing.s3mock.vectors.dto.CreateVectorBucketResponse
-import com.adobe.testing.s3mock.vectors.dto.DeleteVectorBucketRequest
-import com.adobe.testing.s3mock.vectors.dto.GetVectorBucketRequest
 import com.adobe.testing.s3mock.vectors.dto.GetVectorBucketResponse
-import com.adobe.testing.s3mock.vectors.dto.ListVectorBucketsRequest
 import com.adobe.testing.s3mock.vectors.dto.ListVectorBucketsResponse
 import com.adobe.testing.s3mock.vectors.dto.VectorBucket
 import com.adobe.testing.s3mock.vectors.dto.VectorBucketSummary
-import com.adobe.testing.s3mock.vectors.service.VectorBucketService
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
-/**
- * Direct unit tests for [VectorBucketController] — exercises controller logic without Spring MVC.
- * HTTP-level serialization is covered by the integration tests.
- */
-internal class VectorBucketControllerTest {
-  private val vectorBucketService: VectorBucketService = mock()
-  private val iut = VectorBucketController(vectorBucketService)
-
+internal class VectorBucketControllerTest : VectorBaseControllerTest() {
   @Test
-  fun `createVectorBucket returns 200 with ARN`() {
+  fun `CreateVectorBucket returns 200 with ARN`() {
     whenever(vectorBucketService.createVectorBucket("my-bucket", null, emptyMap()))
       .thenReturn(CreateVectorBucketResponse("arn:aws:s3vectors:us-east-1:123:bucket/my-bucket"))
 
-    val response = iut.createVectorBucket(CreateVectorBucketRequest("my-bucket", null, null))
-
-    assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-    assertThat(response.body!!.vectorBucketArn).contains("my-bucket")
+    mockMvc
+      .perform(
+        post("/CreateVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"my-bucket"}"""),
+      ).andExpect(status().isOk)
+      .andExpect(jsonPath("$.vectorBucketArn").value("arn:aws:s3vectors:us-east-1:123:bucket/my-bucket"))
   }
 
   @Test
-  fun `createVectorBucket with missing name throws ValidationException`() {
-    assertThatThrownBy { iut.createVectorBucket(CreateVectorBucketRequest(null, null, null)) }
-      .isInstanceOf(S3VectorsException::class.java)
-      .hasMessageContaining("vectorBucketName is required")
+  fun `CreateVectorBucket with missing name returns 400 ValidationException`() {
+    mockMvc
+      .perform(
+        post("/CreateVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{}"""),
+      ).andExpect(status().isBadRequest)
+      .andExpect(header().string("x-amzn-errortype", "ValidationException"))
   }
 
   @Test
-  fun `createVectorBucket propagates ConflictException from service`() {
+  fun `CreateVectorBucket maps a conflict to 409 ConflictException`() {
     whenever(vectorBucketService.createVectorBucket("existing", null, emptyMap()))
       .thenThrow(S3VectorsException.VECTOR_BUCKET_ALREADY_EXISTS)
 
-    assertThatThrownBy { iut.createVectorBucket(CreateVectorBucketRequest("existing", null, null)) }
-      .isEqualTo(S3VectorsException.VECTOR_BUCKET_ALREADY_EXISTS)
+    mockMvc
+      .perform(
+        post("/CreateVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"existing"}"""),
+      ).andExpect(status().isConflict)
+      .andExpect(header().string("x-amzn-errortype", "ConflictException"))
   }
 
   @Test
-  fun `getVectorBucket returns 200 with bucket details`() {
+  fun `GetVectorBucket returns 200 with bucket details`() {
     val bucket = VectorBucket("arn:aws:s3vectors:us-east-1:123:bucket/b", "b", 1.0, null)
     whenever(vectorBucketService.getVectorBucket("b")).thenReturn(GetVectorBucketResponse(bucket))
 
-    val response = iut.getVectorBucket(GetVectorBucketRequest("b", null))
-
-    assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-    assertThat(response.body!!.vectorBucket.vectorBucketName).isEqualTo("b")
+    mockMvc
+      .perform(
+        post("/GetVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"b"}"""),
+      ).andExpect(status().isOk)
+      .andExpect(jsonPath("$.vectorBucket.vectorBucketName").value("b"))
   }
 
   @Test
-  fun `getVectorBucket propagates NotFoundException from service`() {
+  fun `GetVectorBucket maps a missing bucket to 404 NotFoundException`() {
     whenever(vectorBucketService.getVectorBucket("missing"))
       .thenThrow(S3VectorsException.VECTOR_BUCKET_NOT_FOUND)
 
-    assertThatThrownBy { iut.getVectorBucket(GetVectorBucketRequest("missing", null)) }
-      .isEqualTo(S3VectorsException.VECTOR_BUCKET_NOT_FOUND)
+    mockMvc
+      .perform(
+        post("/GetVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"missing"}"""),
+      ).andExpect(status().isNotFound)
+      .andExpect(header().string("x-amzn-errortype", "NotFoundException"))
   }
 
   @Test
-  fun `listVectorBuckets returns 200 with summaries`() {
-    val summaries = listOf(VectorBucketSummary("arn1", "b1", 1.0), VectorBucketSummary("arn2", "b2", 2.0))
+  fun `ListVectorBuckets returns 200 with summaries`() {
+    val summaries =
+      listOf(
+        VectorBucketSummary("arn1", "b1", 1.0),
+        VectorBucketSummary("arn2", "b2", 2.0),
+      )
     whenever(vectorBucketService.listVectorBuckets(null, null, null))
       .thenReturn(ListVectorBucketsResponse(summaries, null))
 
-    val response = iut.listVectorBuckets(null)
-
-    assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-    assertThat(response.body!!.vectorBuckets).hasSize(2)
-    assertThat(response.body!!.nextToken).isNull()
+    mockMvc
+      .perform(
+        post("/ListVectorBuckets")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{}"""),
+      ).andExpect(status().isOk)
+      .andExpect(jsonPath("$.vectorBuckets.length()").value(2))
   }
 
   @Test
-  fun `listVectorBuckets with null request returns empty list`() {
-    whenever(vectorBucketService.listVectorBuckets(null, null, null))
-      .thenReturn(ListVectorBucketsResponse(emptyList(), null))
+  fun `DeleteVectorBucket returns 200 on success`() {
+    mockMvc
+      .perform(
+        post("/DeleteVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"b"}"""),
+      ).andExpect(status().isOk)
 
-    val response = iut.listVectorBuckets(null)
-
-    assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-    assertThat(response.body!!.vectorBuckets).isEmpty()
+    verify(vectorBucketService).deleteVectorBucket("b")
   }
 
   @Test
-  fun `deleteVectorBucket returns 200 on success`() {
-    val response = iut.deleteVectorBucket(DeleteVectorBucketRequest("b", null))
-
-    assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-  }
-
-  @Test
-  fun `deleteVectorBucket propagates ConflictException from service`() {
+  fun `DeleteVectorBucket maps a non-empty bucket to 409 ConflictException`() {
     whenever(vectorBucketService.deleteVectorBucket("full"))
       .thenThrow(S3VectorsException.VECTOR_BUCKET_NOT_EMPTY)
 
-    assertThatThrownBy { iut.deleteVectorBucket(DeleteVectorBucketRequest("full", null)) }
-      .isEqualTo(S3VectorsException.VECTOR_BUCKET_NOT_EMPTY)
+    mockMvc
+      .perform(
+        post("/DeleteVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{"vectorBucketName":"full"}"""),
+      ).andExpect(status().isConflict)
+      .andExpect(header().string("x-amzn-errortype", "ConflictException"))
   }
 
   @Test
-  fun `deleteVectorBucket with missing name throws ValidationException`() {
-    assertThatThrownBy { iut.deleteVectorBucket(DeleteVectorBucketRequest(null, null)) }
-      .isInstanceOf(S3VectorsException::class.java)
+  fun `DeleteVectorBucket with missing name returns 400 ValidationException`() {
+    mockMvc
+      .perform(
+        post("/DeleteVectorBucket")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""{}"""),
+      ).andExpect(status().isBadRequest)
+      .andExpect(header().string("x-amzn-errortype", "ValidationException"))
   }
 }

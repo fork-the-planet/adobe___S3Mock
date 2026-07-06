@@ -15,6 +15,11 @@
  */
 package com.adobe.testing.s3mock.s3.dto
 
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_CHECKSUM_CRC32
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_CHECKSUM_CRC32C
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_CHECKSUM_CRC64NVME
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_CHECKSUM_SHA1
+import com.adobe.testing.s3mock.common.AwsHttpHeaders.X_AMZ_CHECKSUM_SHA256
 import com.adobe.testing.s3mock.common.S3Verified
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonValue
@@ -30,12 +35,14 @@ fun ChecksumAlgorithm?.ifAlgorithm(
 ): String? = if (this == target) checksum else null
 
 @S3Verified(year = 2025)
-enum class ChecksumAlgorithm {
-  CRC32,
-  CRC32C,
-  CRC64NVME,
-  SHA1,
-  SHA256,
+enum class ChecksumAlgorithm(
+  val headerName: String,
+) {
+  CRC32(X_AMZ_CHECKSUM_CRC32),
+  CRC32C(X_AMZ_CHECKSUM_CRC32C),
+  CRC64NVME(X_AMZ_CHECKSUM_CRC64NVME),
+  SHA1(X_AMZ_CHECKSUM_SHA1),
+  SHA256(X_AMZ_CHECKSUM_SHA256),
   ;
 
   fun toChecksumAlgorithm(): software.amazon.awssdk.checksums.spi.ChecksumAlgorithm =
@@ -54,14 +61,6 @@ enum class ChecksumAlgorithm {
     @JsonCreator
     fun fromString(value: String?): ChecksumAlgorithm? = enumFromName<ChecksumAlgorithm>(value)
 
-    fun fromHeader(value: String?): ChecksumAlgorithm? =
-      when (value) {
-        "x-amz-checksum-sha256" -> SHA256
-        "x-amz-checksum-sha1" -> SHA1
-        "x-amz-checksum-crc32" -> CRC32
-        "x-amz-checksum-crc32c" -> CRC32C
-        "x-amz-checksum-crc64nvme" -> CRC64NVME
-        else -> null
-      }
+    fun fromHeader(value: String?): ChecksumAlgorithm? = entries.firstOrNull { it.headerName == value }
   }
 }

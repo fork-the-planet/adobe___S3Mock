@@ -71,6 +71,9 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
       # Install settings.xml to default location so the forked Maven process
       # started by maven-release-plugin during release:perform can find it.
       # --settings is NOT reliably propagated to the forked build.
@@ -87,4 +90,8 @@ jobs:
           ADOBE_BOT_GITHUB_PASSWORD: ${{ secrets.ADOBE_BOT_GITHUB_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.S3MOCK_AFRANKEN_SONATYPE_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.S3MOCK_AFRANKEN_SONATYPE_PASSWORD }}
+          # Consumed by the spring-boot-maven-plugin build-image publishRegistry config
+          # to push the per-architecture images to Docker Hub during the release.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: make release

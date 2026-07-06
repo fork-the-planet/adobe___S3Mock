@@ -16,14 +16,20 @@
 package com.adobe.testing.s3mock.its
 
 import aws.smithy.kotlin.runtime.net.url.Url
+import com.adobe.testing.s3mock.testcontainers.S3MockContainer
 import com.ctc.wstx.api.WstxOutputProperties
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.github.dockerjava.api.model.HostConfig
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.TestInfo
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.provider.Arguments
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.testcontainers.containers.output.Slf4jLogConsumer
+import org.testcontainers.utility.DockerImageName
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm
@@ -86,9 +92,47 @@ import kotlin.random.Random
 
 /**
  * Base type for S3 Mock integration tests. Sets up S3 Client, Certificates, initial Buckets, etc.
+ *
+ * Each concrete test class gets its own [S3MockContainer] ([TestInstance.Lifecycle.PER_CLASS]),
+ * providing full state isolation between test classes. The container is started lazily on first
+ * endpoint access — subclasses build clients in field initializers, which run before `@BeforeAll`,
+ * so the container must be up by the time an endpoint is requested.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal abstract class S3TestBase {
-  private val s3Client = createS3Client()
+  private val s3MockDelegate =
+    lazy {
+      S3MockContainer(DockerImageName.parse(System.getProperty("it.s3mock.image", "${S3MockContainer.IMAGE_NAME}:latest")))
+        .withValidKmsKeys("arn:aws:kms:us-east-1:1234567890:key/$TEST_ENC_KEY_ID")
+        .withInitialBuckets(INITIAL_BUCKET_NAMES.joinToString(","))
+        .withRegion(SERVER_REGION)
+        .withVectors()
+        .withCreateContainerCmdModifier { cmd ->
+          // Testcontainers has no dedicated memory API; cap it via the Docker host config.
+          val hostConfig = cmd.hostConfig ?: HostConfig.newHostConfig()
+          hostConfig.withMemory(CONTAINER_MEMORY_BYTES)
+          cmd.withHostConfig(hostConfig)
+        }.apply {
+          if (DEBUG) {
+            withDebug()
+          }
+          if (LOG_ENABLED) {
+            withLogConsumer(Slf4jLogConsumer(LOG))
+          }
+          start()
+        }
+    }
+
+  protected val s3Mock: S3MockContainer by s3MockDelegate
+
+  @AfterAll
+  fun stopContainer() {
+    if (s3MockDelegate.isInitialized()) {
+      s3Mock.stop()
+    }
+  }
+
+  private val s3Client: S3Client by lazy { createS3Client() }
 
   protected fun createHttpClient(): java.net.http.HttpClient =
     java.net.http.HttpClient
@@ -292,6 +336,11 @@ internal abstract class S3TestBase {
   }
 
   private fun cleanupVectorBuckets() {
+    // Skip when running against a real S3 endpoint without a vectors endpoint: this avoids hitting an
+    // unrelated real Vectors service and prevents accidentally starting the Testcontainer at cleanup.
+    if (s3EndpointOverride != null && s3VectorsEndpointOverride == null) {
+      return
+    }
     try {
       createS3VectorsClient().use { client ->
         client.listVectorBuckets { }.vectorBuckets().forEach { bucket ->
@@ -503,36 +552,60 @@ internal abstract class S3TestBase {
       }
   }
 
-  private val s3Endpoint: String?
-    get() = System.getProperty("it.s3mock.endpoint", null)
-  private val s3VectorsEndpoint: String?
-    get() = System.getProperty("it.s3mock.vectors.endpoint", null)
-  private val s3AccessKeyId: String
-    get() = System.getProperty("it.s3mock.access.key.id", "foo")
-  private val s3SecretAccessKey: String
-    get() = System.getProperty("it.s3mock.secret.access.key", "bar")
-  private val s3Region: String
-    get() = System.getProperty("it.s3mock.region", "us-east-1")
-  private val port: Int
-    get() = Integer.getInteger("it.s3mock.port_https", 9191)
+  /**
+   * Connection overrides for running the integration tests against an external endpoint (e.g. the
+   * real AWS S3 API) directly from the IDE instead of a Testcontainer.
+   *
+   * When `it.s3mock.endpoint` is set, S3 operations use that endpoint and no `s3Mock` access is
+   * needed for them. Vector operations still need `it.s3mock.vectors.endpoint`; otherwise
+   * `vectorsEndpoint` / `vectorsEndpointHttp` fall back to `s3Mock.vectors*Endpoint` and may start
+   * the Testcontainer if vector helpers are exercised. `it.s3mock.access.key.id`,
+   * `it.s3mock.secret.access.key`, and `it.s3mock.region` override the remaining connection
+   * settings. `@S3VerifiedFailure` tests are disabled in this mode — see
+   * [RealS3BackendUsedCondition].
+   */
+  private val s3EndpointOverride: String? = System.getProperty("it.s3mock.endpoint")
+  private val s3VectorsEndpointOverride: String? = System.getProperty("it.s3mock.vectors.endpoint")
+  private val s3AccessKeyId: String = System.getProperty("it.s3mock.access.key.id", "foo")
+  private val s3SecretAccessKey: String = System.getProperty("it.s3mock.secret.access.key", "bar")
+  private val s3Region: String = System.getProperty("it.s3mock.region", "us-east-1")
+
+  /**
+   * Parsed form of [s3EndpointOverride]. Fails fast if the override is set but is not an absolute
+   * URI with a host, so that a malformed value cannot silently fall back to starting the
+   * Testcontainer (which would contradict the documented "no container started" behavior).
+   */
+  private val s3EndpointOverrideUri: URI? =
+    s3EndpointOverride?.let {
+      URI.create(it).also { uri ->
+        require(uri.isAbsolute && uri.host != null) {
+          "it.s3mock.endpoint must be an absolute URI with a host " +
+            "(e.g. https://s3.eu-west-1.amazonaws.com) but was: $it"
+        }
+      }
+    }
+
   protected val host: String
-    get() = System.getProperty("it.s3mock.host", "localhost")
+    get() = s3EndpointOverrideUri?.host ?: s3Mock.host
   protected val randomName: String
     get() = UUID.randomUUID().toString()
   protected val serviceEndpoint: String
-    get() = s3Endpoint ?: "https://$host:$port"
+    get() = s3EndpointOverride ?: s3Mock.httpsEndpoint
   protected val serviceEndpointHttp: String
-    get() = s3Endpoint ?: "http://$host:$httpPort"
+    get() = s3EndpointOverride ?: s3Mock.httpEndpoint
   protected val httpPort: Int
-    get() = Integer.getInteger("it.s3mock.port_http", 9090)
-  protected val vectorsHttpPort: Int
-    get() = Integer.getInteger("it.s3mock.vectors.port_http", 9092)
-  protected val vectorsHttpsPort: Int
-    get() = Integer.getInteger("it.s3mock.vectors.port_https", 9193)
+    get() = s3EndpointOverrideUri?.let { if (it.port != -1) it.port else defaultPortForScheme(it.scheme) } ?: s3Mock.httpServerPort
   protected val vectorsEndpoint: String
-    get() = s3VectorsEndpoint ?: "https://$host:$vectorsHttpsPort"
+    get() = s3VectorsEndpointOverride ?: s3Mock.vectorsHttpsEndpoint
   protected val vectorsEndpointHttp: String
-    get() = s3VectorsEndpoint ?: "http://$host:$vectorsHttpPort"
+    get() = s3VectorsEndpointOverride ?: s3Mock.vectorsHttpEndpoint
+
+  private fun defaultPortForScheme(scheme: String?): Int =
+    when (scheme?.lowercase()) {
+      "https" -> 443
+      "http" -> 80
+      else -> throw IllegalArgumentException("it.s3mock.endpoint must use an http or https scheme but was: $s3EndpointOverride")
+    }
 
   protected fun createBlindlyTrustingSslContext(): SSLContext =
     try {
@@ -772,6 +845,23 @@ internal abstract class S3TestBase {
   companion object {
     const val WILDCARD = "*"
     val INITIAL_BUCKET_NAMES: Collection<String> = listOf("bucket-a", "bucket-b")
+
+    /** Region the S3Mock container is configured with (`COM_ADOBE_TESTING_S3MOCK_STORE_REGION`). */
+    const val SERVER_REGION = "eu-west-1"
+
+    /**
+     * Memory cap for each S3Mock container. Buildpack images run the Paketo/BellSoft JVM
+     * memory calculator at launch; our `BPL_JVM_THREAD_COUNT=50`, `-Xss512k`, and
+     * `-XX:ReservedCodeCacheSize=32M` tuning are inputs to that calculator.  256 MiB now leaves a computed heap
+     * of ~108 MiB and starts reliably.
+     */
+    const val CONTAINER_MEMORY_BYTES = 256L * 1024 * 1024
+
+    // -Ds3mock.log=true forwards the container output to the build log (default: off).
+    val LOG_ENABLED: Boolean = System.getProperty("s3mock.log", "false").toBoolean()
+
+    // -Ds3mock.debug=true activates the server's "debug" Spring profile (default: off).
+    val DEBUG: Boolean = System.getProperty("s3mock.debug", "false").toBoolean()
     val LOG: Logger = LoggerFactory.getLogger(this::class.java)
     const val TEST_ENC_KEY_ID = "valid-test-key-id"
     const val SAMPLE_FILE = "src/test/resources/sampleFile.txt"

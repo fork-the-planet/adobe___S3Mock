@@ -18,7 +18,6 @@ package com.adobe.testing.s3mock.s3.store
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.bind.DefaultValue
-import software.amazon.awssdk.regions.Region
 
 @JvmRecord
 @ConfigurationProperties("com.adobe.testing.s3mock.store")
@@ -33,5 +32,5 @@ data class StoreProperties(
   @param:DefaultValue("") val initialBuckets: List<String>,
   // Region is S3Mock is supposed to mock.
   // Must be an official AWS region string like "us-east-1"
-  @param:DefaultValue("us-east-1") val region: Region,
+  @param:DefaultValue("us-east-1") val region: String,
 )

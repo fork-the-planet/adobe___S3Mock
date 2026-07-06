@@ -12,16 +12,15 @@ Lightweight S3 API mock server for local integration testing.
 ## Tech Stack
 - **Kotlin 2.3+** (language/API compatibility: 2.2; JVM target: 17; build toolchain: JDK 25 — per Spring Boot 4.x guidance), Spring Boot 4.0.x, Maven 3.9+
 - **Testing**: JUnit 5, Mockito, AssertJ, Testcontainers
-- **Container**: Docker/Alpine
+- **Container**: OCI image built by Spring Boot / Cloud Native Buildpacks (BellSoft Alpaquita Linux `musl` builder, multi-arch)
 
 ## Structure
 
 | Module | Description | Agent context |
 |---|---|---|
-| `server/` | Core implementation (Controller→Service→Store) | [server/AGENTS.md](server/AGENTS.md) |
+| `server/` | Core implementation (Controller→Service→Store); also builds the OCI Docker image | [server/AGENTS.md](server/AGENTS.md) |
 | `integration-tests/` | AWS SDK integration tests | [integration-tests/AGENTS.md](integration-tests/AGENTS.md) |
 | `testsupport/` | JUnit 5, Testcontainers, TestNG integrations | [testsupport/AGENTS.md](testsupport/AGENTS.md) |
-| `docker/` | Docker image build | — |
 | `docs/` | Convention docs ([KOTLIN.md](docs/KOTLIN.md), [SPRING.md](docs/SPRING.md), [TESTING.md](docs/TESTING.md), [JAVA.md](docs/JAVA.md) | — |
 
 ## Architecture
@@ -120,7 +119,7 @@ All PRs and pushes are validated by the `maven-ci-and-prb.yml` GitHub Actions wo
 3. Integration tests (`*IT.kt` against Docker container)
 4. ktlint (Kotlin code style)
 5. Checkstyle (Java/XML code style, config in `etc/checkstyle.xml`)
-6. Docker image build (unless `-DskipDocker`)
+6. OCI image build via Spring Boot Buildpacks in `server/` (local architecture only; unless `-DskipDocker`)
 
 **Additional workflows**: CodeQL (security scanning), SBOM (dependency tracking), OpenSSF Scorecard, Dependabot (automated dependency updates), Stale issue management.
 

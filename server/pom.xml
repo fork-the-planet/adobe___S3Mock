@@ -61,28 +61,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
+    <!-- Provides the Java implementations of CRC32/CRC32C/SHA checksums. CRC64NVME has no Java
+         fallback here (it requires the native aws-crt library), so S3Mock supplies its own
+         pure-JVM Crc64Nvme implementation instead of pulling in the ~20MB aws-crt dependency. -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
-      <artifactId>aws-crt-client</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>regions</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>s3</artifactId>
-      <exclusions>
-        <!-- TODO: these dependencies suddenly break the Docker container build when updating to Spring Boot 4.0.0-SNAPSHOT -->
-        <exclusion>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-codec-marshalling</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-codec-protobuf</artifactId>
-        </exclusion>
-      </exclusions>
+      <artifactId>checksums</artifactId>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -165,6 +149,14 @@
       <artifactId>auth</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Test-only: the AWS SDK chunk-encoder used to build CRC64NVME test fixtures requires the
+         native aws-crt library. Not needed at runtime - S3Mock computes CRC64NVME via its own
+         pure-JVM Crc64Nvme - so this stays test-scoped and out of the packaged fat jar. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>aws-crt-client</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -186,6 +178,56 @@
         <configuration>
           <mainClass>${start-class}</mainClass>
           <classifier>exec</classifier>
+          <!--
+            Shared OCI image build configuration. Maven merges this plugin-level
+            configuration into the build-image executions declared in the
+            build-docker-image and push-docker-image profiles, so the common
+            Buildpacks env only needs to be defined once here.
+          -->
+          <image>
+            <!--
+              Use BellSoft's Alpaquita Linux (musl) Cloud Native Buildpacks builder instead of
+              Spring Boot's default Paketo noble-java-tiny builder. The musl builder produces a
+              smaller image and defaults to the bellsoft/buildpacks.hardened-run:musl run image
+              (immutable, proactively CVE-patched, SBOM included), which reduces the number of
+              CVEs reported by users' image scanners. Multi-arch (linux/amd64 + linux/arm64).
+            -->
+            <builder>bellsoft/buildpacks.builder:musl</builder>
+            <env>
+              <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
+              <!-- Run jdeps + jlink to produce a minimal custom JRE (only required modules). -->
+              <BP_JVM_JLINK_ENABLED>true</BP_JVM_JLINK_ENABLED>
+              <!--
+                Tighten the jlink output beyond the buildpack default: keep only the server VM
+                (drops the unused client + minimal libjvm.so variants, ~15MB), and use the JDK 21+
+                zip-9 module compression (shrinks lib/modules by ~10MB). musl only trims the OS
+                layer, not the JRE, so these flags are what actually reduce the JRE layer. ZGC and
+                C2 live in the server VM, so runtime behaviour is unchanged.
+              -->
+              <BP_JVM_JLINK_ARGS>--no-man-pages --no-header-files --strip-debug --compress=zip-9 --vm=server</BP_JVM_JLINK_ARGS>
+              <!-- S3Mock does not use Spring Cloud Bindings; disable to remove the ~94MB layer. -->
+              <BP_SPRING_CLOUD_BINDINGS_DISABLED>true</BP_SPRING_CLOUD_BINDINGS_DISABLED>
+              <!--
+                Memory-footprint tuning for the launched container. BPL_JVM_THREAD_COUNT is only
+                the estimate the Paketo memory calculator uses to reserve thread-stack space
+                (threads x -Xss); lowering it from the 250 default frees memory for the heap under
+                a container memory limit (it does not cap the actual number of threads).
+                It must use the OVERRIDE type: a DEFAULT-typed launch env is not visible to the
+                memory-calculator exec.d process, so it would silently have no effect. The
+                trade-off is that a runtime `-e BPL_JVM_THREAD_COUNT=...` is ignored.
+              -->
+              <BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>50</BPE_OVERRIDE_BPL_JVM_THREAD_COUNT>
+              <!--
+                Footprint tuning: a smaller reserved code cache (vs the 240M default) and a 512k thread stack.
+                The memory calculator honors these user-provided values instead of overriding them.
+              -->
+              <BPE_APPEND_JAVA_TOOL_OPTIONS>-XX:+UseZGC -Djava.security.egd=file:/dev/./urandom -XX:ReservedCodeCacheSize=32M -Xss512k</BPE_APPEND_JAVA_TOOL_OPTIONS>
+              <BPE_DELIM_JAVA_TOOL_OPTIONS xml:space="preserve"> </BPE_DELIM_JAVA_TOOL_OPTIONS>
+              <BPE_DEFAULT_LANG>en_US.UTF-8</BPE_DEFAULT_LANG>
+              <BPE_DEFAULT_LANGUAGE>en_US:en</BPE_DEFAULT_LANGUAGE>
+              <BPE_DEFAULT_LC_ALL>en_US.UTF-8</BPE_DEFAULT_LC_ALL>
+            </env>
+          </image>
         </configuration>
         <executions>
           <execution>
@@ -197,4 +239,172 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!--
+      Build a local, single-architecture OCI image via Cloud Native Buildpacks using the
+      BellSoft Alpaquita Linux (musl) builder configured on the spring-boot-maven-plugin above.
+      No imagePlatform is set, so Docker pulls the builder/run images matching the host
+      architecture and the produced image matches the local Docker daemon automatically.
+      Active by default; skipped with -DskipDocker. The integration-tests and
+      testcontainers modules consume this image for local testing.
+    -->
+    <profile>
+      <id>build-docker-image</id>
+      <activation>
+        <property>
+          <!-- If running with -DskipDocker, this profile won't be active. -->
+          <name>!skipDocker</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>parse-version</id>
+                <goals>
+                  <goal>parse-version</goal>
+                </goals>
+                <phase>validate</phase>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>build-image</id>
+                <goals>
+                  <goal>build-image</goal>
+                </goals>
+                <phase>package</phase>
+                <configuration>
+                  <image>
+                    <name>${docker.image.name}:${project.version}</name>
+                    <!-- Version tag names: major, minor, latest (patch is the image name above). -->
+                    <tags>
+                      <tag>${docker.image.name}:${parsedVersion.majorVersion}</tag>
+                      <tag>${docker.image.name}:${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</tag>
+                      <tag>${docker.image.name}:latest</tag>
+                    </tags>
+                  </image>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!--
+      Release-only profile: builds both linux/amd64 and linux/arm64 images (arm64 via QEMU
+      emulation on an amd64 runner), publishes each to a temporary per-architecture tag on
+      Docker Hub, then merges them into a single multi-architecture manifest for the final tags.
+    -->
+    <profile>
+      <id>push-docker-image</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>parse-version</id>
+                <goals>
+                  <goal>parse-version</goal>
+                </goals>
+                <phase>validate</phase>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <!--
+                Merge the two per-architecture images into a single multi-arch manifest for the
+                final tags. Runs after both images have been published (package phase).
+              -->
+              <execution>
+                <id>merge-multi-arch-manifest</id>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>buildx</argument>
+                    <argument>imagetools</argument>
+                    <argument>create</argument>
+                    <!-- Version tag names: patch, minor, major, latest -->
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${project.version}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:${parsedVersion.majorVersion}</argument>
+                    <argument>--tag</argument>
+                    <argument>${docker.image.name}:latest</argument>
+                    <!-- Sources: the per-architecture images published above -->
+                    <argument>${docker.image.name}:${project.version}-amd64</argument>
+                    <argument>${docker.image.name}:${project.version}-arm64</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+            <configuration>
+              <docker>
+                <publishRegistry>
+                  <username>${env.DOCKERHUB_USERNAME}</username>
+                  <password>${env.DOCKERHUB_PASSWORD}</password>
+                </publishRegistry>
+              </docker>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build-image-amd64</id>
+                <goals>
+                  <goal>build-image</goal>
+                </goals>
+                <phase>package</phase>
+                <configuration>
+                  <image>
+                    <name>${docker.image.name}:${project.version}-amd64</name>
+                    <imagePlatform>linux/amd64</imagePlatform>
+                    <publish>true</publish>
+                  </image>
+                </configuration>
+              </execution>
+              <execution>
+                <id>build-image-arm64</id>
+                <goals>
+                  <goal>build-image</goal>
+                </goals>
+                <phase>package</phase>
+                <configuration>
+                  <image>
+                    <name>${docker.image.name}:${project.version}-arm64</name>
+                    <imagePlatform>linux/arm64</imagePlatform>
+                    <publish>true</publish>
+                  </image>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

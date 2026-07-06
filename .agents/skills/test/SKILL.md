@@ -21,7 +21,7 @@ Use this skill when asked to:
 
 ## Base Class Selection
 
-Always extend the correct base class — never write tests without one:
+For Spring-managed components (services, stores, controllers, filters, `@ControllerAdvice`), always extend the correct base class — never write standard Mockito unit tests (`@ExtendWith(MockitoExtension)` + `@Mock` + `@InjectMocks`), which is banned by the `noStandardMockitoUnitTests` ArchUnit rule:
 
 | Test type | Base class | Module |
 |---|---|---|
@@ -29,6 +29,8 @@ Always extend the correct base class — never write tests without one:
 | Store unit tests | `StoreTestBase` | `server/` |
 | Controller slice tests (`@WebMvcTest`) | `BaseControllerTest` | `server/` |
 | Integration tests (live Docker container) | `S3TestBase` | `integration-tests/` |
+
+Plain classes with no injected collaborators (most `dto`/`model`/`util`) use a plain unit test with no base class.
 
 ## Conventions
 
@@ -62,6 +64,7 @@ Always extend the correct base class — never write tests without one:
 - [ ] Both success and failure cases tested
 - [ ] Tests pass locally
 - [ ] Correct base class used
+- [ ] Spring-managed components use `@SpringBootTest`/`@WebMvcTest` + `@MockitoBean` — no `@ExtendWith(MockitoExtension)`, `@Mock`, or `@InjectMocks` (enforced by `noStandardMockitoUnitTests`)
 - [ ] Backtick naming, `internal class`, AssertJ assertions used
 - [ ] No shared state between tests
 - [ ] Copyright year updated in every modified file
